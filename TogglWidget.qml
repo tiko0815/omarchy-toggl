@@ -63,7 +63,7 @@ Panel {
             id: barContents
             anchors.centerIn: parent
             spacing: Style.space(6)
-            TrackMark { anchors.verticalCenter: parent.verticalCenter; ink: root.state.current ? Color.accent : button.foreground }
+            TrackMark { width: Style.space(13); height: width; anchors.verticalCenter: parent.verticalCenter; ink: root.state.current ? Color.accent : button.foreground }
             Text {
                 visible: !!root.state.current
                 anchors.verticalCenter: parent.verticalCenter
