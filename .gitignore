@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+.venv/
+.env
+.env.*
+!.env.example
+state.json
+*.lock
+*.log
+*.bak
+*.bak.*
+credentials*
+secrets*
+.DS_Store

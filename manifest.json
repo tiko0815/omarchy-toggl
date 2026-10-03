@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "fabi.toggl",
+  "name": "Toggl Track",
+  "version": "1.0.1",
+  "author": "Fabian",
+  "description": "Quick Toggl tracking with secure account setup and native Omarchy styling",
+  "kinds": [
+    "service",
+    "bar-widget"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "service": "Service.qml",
+    "barWidget": "TogglWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Toggl Track",
+    "description": "Start, stop and resume Toggl timers",
+    "category": "Time",
+    "allowMultiple": false
+  }
+}
