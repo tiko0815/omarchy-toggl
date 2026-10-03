@@ -24,7 +24,7 @@ visible after an update, restart the shell with `omarchy restart shell`.
 
 ## Setup
 
-Click the Toggl stopwatch icon in the bar. Choose **Get token** to open
+Click the Toggl power-ring icon in the bar. Choose **Get token** to open
 Toggl's profile, copy your API token into the masked field, then click **Connect**.
 Choose your workspace using the named **Workspace** selector above the timer.
 Setup explains the rolling API request limit and that this app requires an API
@@ -37,6 +37,7 @@ Toggl timer.
 
 ## Behavior
 
+- The primary button starts a timer when idle and stops it when running.
 - Start with an optional description and project. Switch timer stops the previous
   entry before creating the next. Resume always creates a new entry.
 - Elapsed time ticks locally. The server is checked every five minutes, before
@@ -89,3 +90,6 @@ Version 1.0.1 fixes active project filtering and zero-height selection lists.
 Existing project caches are refreshed automatically on upgrade. Generic workspace
 names are qualified with their organization name; identical labels include the
 workspace ID so every workspace stays distinguishable.
+
+Version 1.1.0 adds a theme-aware power-ring bar icon, a larger elapsed-time
+display, a prominent Start/Stop button, and project labels on recent entries.
