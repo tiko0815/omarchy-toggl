@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls as Controls
 import Quickshell
+import Quickshell.Io
 import qs.Commons
 import qs.Ui
 
@@ -33,8 +34,55 @@ Panel {
     property var projectId: null
     property string projectName: "No project"
     readonly property var projects: (state.projects || []).filter(p => p.workspace_id === state.workspace && p.name.toLowerCase().indexOf(search.text.toLowerCase()) >= 0)
-    implicitWidth: button.implicitWidth
-    implicitHeight: button.implicitHeight
+    readonly property bool timerActive: !!state.current || ["running", "starting", "stop_pending"].indexOf(pomo.status) >= 0
+    readonly property bool revealed: opened || timerActive || button.tooltipHovered || (bar && bar.centerSectionRevealHeld && !bar.centerHoverRevealSuppressed)
+    implicitWidth: revealed ? button.implicitWidth : 0
+    implicitHeight: revealed ? button.implicitHeight : 0
+    visible: revealed
+    property var trafficColors: ({})
+    FileView {
+        path: Color.currentThemePath + "/colors.toml"
+        watchChanges: true
+        onFileChanged: reload()
+        onLoaded: {
+            var palette = {};
+            var lines = text().split("\n");
+            for (var i = 0; i < lines.length; i++) {
+                var match = lines[i].match(/^\s*([A-Za-z0-9_-]+)\s*=\s*["']?(#[0-9A-Fa-f]{6})/);
+                if (match) palette[match[1]] = match[2];
+            }
+            root.trafficColors = palette;
+        }
+    }
+    component WindowDot: Controls.AbstractButton {
+        id: dot
+        required property color tint
+        required property string symbol
+        implicitWidth: Style.space(17)
+        implicitHeight: Style.space(22)
+        activeFocusOnTab: true
+        Accessible.name: text
+        background: Rectangle {
+            width: Style.space(11)
+            height: width
+            anchors.centerIn: parent
+            radius: width / 2
+            color: dot.tint
+            border.width: dot.activeFocus ? 1 : 0
+            border.color: Color.foreground
+        }
+        contentItem: Text {
+            text: dot.hovered || dot.activeFocus ? dot.symbol : ""
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            color: root.inkFor(dot.tint)
+            font.family: Style.font.family
+            font.pixelSize: Style.space(10)
+        }
+        Controls.ToolTip.visible: hovered
+        Controls.ToolTip.text: text
+        Controls.ToolTip.delay: 400
+    }
     onOpenedChanged: if (opened) { account = !state.connected; if (pomo.status !== "idle") pomodoroMode = true; }
     Connections {
         target: root.service
@@ -58,9 +106,10 @@ Panel {
             ctx.beginPath(); ctx.moveTo(width / 2, height * 0.08); ctx.lineTo(width / 2, height * 0.48); ctx.stroke();
         }
     }
-    function accentInk() {
+    function accentInk() { return inkFor(Color.accent); }
+    function inkFor(color) {
         function linear(c) { return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
-        return 0.2126 * linear(Color.accent.r) + 0.7152 * linear(Color.accent.g) + 0.0722 * linear(Color.accent.b) > 0.179 ? "#000000" : "#ffffff";
+        return 0.2126 * linear(color.r) + 0.7152 * linear(color.g) + 0.0722 * linear(color.b) > 0.179 ? "#000000" : "#ffffff";
     }
     FontMetrics { id: metrics; font.family: Style.font.family; font.pixelSize: Style.font.body }
     function fit(text) { return metrics.elidedText(text, Qt.ElideRight, popup.contentWidth - Style.space(45)); }
@@ -95,6 +144,7 @@ Panel {
         }
         horizontalMargin: 5
         verticalPadding: 5
+        maintainIndicatorReveal: true
         tooltipText: root.state.current ? "Toggl · " + (root.state.current.description || "Untitled") + "\n" + root.projectLabel(root.state.current.project_id) + (!root.state.online ? "\nLast known timer · refresh needed" : "") : "Toggl Track"
         onPressed: function(mouseButton) { if (mouseButton === Qt.LeftButton) root.toggle(); }
     }
@@ -123,9 +173,17 @@ Panel {
                 Keys.onEscapePressed: root.close()
                 RowLayout {
                     Layout.fillWidth: true
+                    spacing: Style.space(4)
+                    Row {
+                        spacing: Style.space(1)
+                        WindowDot { text: "Close panel"; symbol: "×"; tint: root.trafficColors.red || root.trafficColors.color1 || Color.urgent; onClicked: root.close() }
+                        WindowDot { text: "Hide panel"; symbol: "−"; tint: root.trafficColors.yellow || root.trafficColors.color3 || Color.accent; onClicked: root.close() }
+                        WindowDot { text: "Open Toggl"; symbol: "+"; tint: root.trafficColors.green || root.trafficColors.color2 || Color.accent; onClicked: { Quickshell.execDetached(["xdg-open", "https://track.toggl.com/timer"]); root.close(); } }
+                    }
                     Button {
                         Layout.fillWidth: true
-                        text: root.state.connected ? root.fit(root.workspaceName + " ▾") : "Toggl Track"
+                        Layout.minimumWidth: 0
+                        text: root.state.connected ? metrics.elidedText(root.workspaceName + " ▾", Qt.ElideRight, Math.max(0, popup.contentWidth - Style.space(160))) : "Toggl Track"
                         tooltipText: root.workspaceName
                         focusable: true
                         enabled: !!root.state.connected && !root.pomoLocked

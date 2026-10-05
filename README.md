@@ -24,7 +24,9 @@ visible after an update, restart the shell with `omarchy restart shell`.
 
 ## Setup
 
-Click the Toggl power-ring icon in the bar. Choose **Get token** to open
+Hover over the clock area to reveal the Toggl power-ring icon, then click it.
+The icon stays visible while Toggl or Pomodoro is running and hides when idle
+or paused (unless the popup is open or the clock area is hovered). Choose **Get token** to open
 Toggl's profile, copy your API token into the masked field, then click **Connect**.
 Choose your workspace using the named **Workspace** selector above the timer.
 Setup explains the rolling API request limit and that this app requires an API
@@ -118,3 +120,7 @@ display, a prominent Start/Stop button, and project labels on recent entries.
 
 Version 1.2.0 uses a compact timer row without the recent list and adds persisted
 Pomodoro sessions with automatic Toggl tracking and completion notifications.
+
+Version 1.2.1 hides the idle bar icon, keeps clock-area hover access, and adds
+three theme-colored window circles: Close panel, Hide panel, and Open Toggl.
+Closing or hiding the panel never stops an active timer.
