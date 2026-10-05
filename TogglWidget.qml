@@ -176,18 +176,16 @@ Panel {
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: Style.space(4)
+                    visible: !root.state.connected || root.canPickWorkspace
                     Button {
                         Layout.fillWidth: true
                         Layout.minimumWidth: 0
-                        visible: !root.state.connected || root.canPickWorkspace
-                        text: root.state.connected ? metrics.elidedText(root.workspaceName + " ▾", Qt.ElideRight, Math.max(0, popup.contentWidth - Style.space(105))) : "Toggl Track"
+                        text: root.state.connected ? metrics.elidedText(root.workspaceName + " ▾", Qt.ElideRight, Math.max(0, popup.contentWidth - Style.space(20))) : "Toggl Track"
                         tooltipText: root.workspaceName
                         focusable: true
                         enabled: !!root.state.connected && !root.pomoLocked
                         onClicked: root.pickingWorkspace = !root.pickingWorkspace
                     }
-                    Item { Layout.fillWidth: true; visible: !!root.state.connected && !root.canPickWorkspace }
-                    Button { text: root.account ? "Back" : "Account"; focusable: true; onClicked: root.account = !root.account }
                 }
                 ListView {
                     visible: root.pickingWorkspace && root.canPickWorkspace && !!root.state.connected
@@ -441,11 +439,12 @@ Panel {
                     }
                 }
                 Rectangle { Layout.fillWidth: true; height: 1; color: Color.foreground; opacity: 0.12 }
-                RowLayout {
+                Item {
                     Layout.fillWidth: true
-                    Button { text: "Refresh"; focusable: true; enabled: root.state.connected && root.service && !root.service.busy; onClicked: root.act("refresh") }
-                    Item { Layout.fillWidth: true }
-                    Button { text: "Open Toggl ↗"; focusable: true; onClicked: Quickshell.execDetached(["xdg-open", "https://track.toggl.com/timer"]) }
+                    implicitHeight: Math.max(refreshButton.implicitHeight, accountButton.implicitHeight, openButton.implicitHeight)
+                    Button { id: refreshButton; anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Refresh"; focusable: true; enabled: root.state.connected && root.service && !root.service.busy; onClicked: root.act("refresh") }
+                    Button { id: accountButton; anchors.centerIn: parent; text: root.account ? "Back" : "Account"; focusable: true; onClicked: root.account = !root.account }
+                    Button { id: openButton; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "Open Toggl ↗"; focusable: true; onClicked: Quickshell.execDetached(["xdg-open", "https://track.toggl.com/timer"]) }
                 }
             }
         }
