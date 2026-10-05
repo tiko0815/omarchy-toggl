@@ -56,9 +56,28 @@ Panel {
         onHeightChanged: requestPaint()
         onPaint: {
             var ctx = getContext("2d"); ctx.reset();
-            ctx.strokeStyle = ink; ctx.lineWidth = width * 0.13; ctx.lineCap = "round";
-            ctx.beginPath(); ctx.arc(width / 2, height * 0.55, width * 0.35, -Math.PI / 4, Math.PI * 1.25); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(width / 2, height * 0.08); ctx.lineTo(width / 2, height * 0.48); ctx.stroke();
+            ctx.strokeStyle = ink; ctx.lineCap = "round";
+            ctx.lineWidth = width * 0.075;
+            ctx.beginPath(); ctx.arc(width / 2, height / 2, width * 0.445, 0, Math.PI * 2); ctx.stroke();
+            ctx.lineWidth = width * 0.095;
+            ctx.beginPath(); ctx.arc(width / 2, height * 0.54, width * 0.235, -Math.PI / 4, Math.PI * 1.25); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(width / 2, height * 0.22); ctx.lineTo(width / 2, height * 0.49); ctx.stroke();
+        }
+    }
+    component TomatoMark: Canvas {
+        property color ink: Color.muted
+        onInkChanged: requestPaint()
+        onWidthChanged: requestPaint()
+        onHeightChanged: requestPaint()
+        onPaint: {
+            var ctx = getContext("2d"); ctx.reset(); ctx.scale(width, height);
+            ctx.strokeStyle = ink; ctx.fillStyle = ink; ctx.lineWidth = 0.065; ctx.lineCap = "round"; ctx.lineJoin = "round";
+            ctx.beginPath(); ctx.moveTo(0.5, 0.37);
+            ctx.bezierCurveTo(0.14, 0.17, 0.03, 0.55, 0.22, 0.8);
+            ctx.bezierCurveTo(0.36, 0.97, 0.67, 0.97, 0.8, 0.78);
+            ctx.bezierCurveTo(0.99, 0.5, 0.83, 0.2, 0.5, 0.37); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0.5, 0.36); ctx.lineTo(0.31, 0.24); ctx.lineTo(0.48, 0.27);
+            ctx.lineTo(0.56, 0.12); ctx.lineTo(0.59, 0.29); ctx.lineTo(0.76, 0.29); ctx.lineTo(0.62, 0.41); ctx.closePath(); ctx.fill();
         }
     }
     function accentInk() { return inkFor(Color.accent); }
@@ -76,7 +95,7 @@ Panel {
         text: "Toggl"
         labelVisible: false
         fixedWidth: barContents.implicitWidth + Style.space(12)
-        dimmed: false
+        dimmed: !root.timerActive
         Row {
             id: barContents
             anchors.centerIn: parent
@@ -209,6 +228,32 @@ Panel {
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: Style.space(10)
+                        Controls.AbstractButton {
+                            id: pomoToggle
+                            implicitWidth: Style.space(28)
+                            implicitHeight: implicitWidth
+                            text: "Pomodoro"
+                            activeFocusOnTab: true
+                            Accessible.name: "Toggle Pomodoro controls"
+                            background: Rectangle {
+                                radius: width / 2
+                                color: "transparent"
+                                border.width: 1
+                                border.color: root.pomodoroMode || pomoToggle.activeFocus ? Color.accent : Color.muted
+                            }
+                            contentItem: Item {
+                                TomatoMark {
+                                    anchors.centerIn: parent
+                                    width: Style.space(17)
+                                    height: width
+                                    ink: root.pomo.status === "running" ? Color.accent : (pomoToggle.hovered ? Color.foreground : Color.muted)
+                                }
+                            }
+                            Controls.ToolTip.visible: hovered
+                            Controls.ToolTip.text: "Pomodoro"
+                            Controls.ToolTip.delay: 400
+                            onClicked: root.pomodoroMode = !root.pomodoroMode
+                        }
                         TextField {
                             id: description
                             Layout.fillWidth: true
@@ -256,7 +301,6 @@ Panel {
                     RowLayout {
                         Layout.fillWidth: true
                         Button { Layout.fillWidth: true; leftAlign: true; text: root.fit(root.projectName + " ▾"); tooltipText: root.projectName; focusable: true; enabled: !root.pomoLocked; onClicked: root.pickingProject = !root.pickingProject }
-                        Button { text: "Pomodoro"; selected: root.pomodoroMode; focusable: true; onClicked: root.pomodoroMode = !root.pomodoroMode }
                     }
                     ColumnLayout {
                         visible: root.pickingProject

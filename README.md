@@ -58,7 +58,7 @@ Toggl timer.
 
 ## Pomodoro
 
-Click **Pomodoro** to reveal the focus controls. The round play button starts a
+Click the circled tomato icon beside the description to reveal the Pomodoro controls. The round play button starts a
 25-minute focus session and creates its Toggl entry using the selected project
 and description. Starting a focus session while another entry runs switches to
 a new entry. The button becomes Pause while the session runs.
@@ -124,3 +124,7 @@ Pomodoro sessions with automatic Toggl tracking and completion notifications.
 Version 1.2.2 keeps the idle icon hidden with clock-area hover access and removes
 the three window circles from the header. Escape or an outside click closes the
 popup without stopping an active timer.
+
+Version 1.2.3 adds an outer ring to the small bar mark and replaces the Pomodoro
+text button with a circled tomato icon. The idle bar icon uses the same dimmed
+style as Omarchy’s timer widget; the inactive tomato uses the theme’s muted color.
