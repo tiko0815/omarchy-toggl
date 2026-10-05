@@ -41,6 +41,10 @@ Toggl timer.
 
 - The primary button starts a timer when idle and stops it when running.
 - Start with an optional description and project. Stop ends the current entry.
+- Typing a description suggests matching cached entries from the selected workspace.
+  Choose with the mouse or arrow keys and Enter to fill the description and project;
+  selection does not start a timer. Escape dismisses suggestions. No recent list is
+  shown while the field is empty, and autocomplete uses no API requests.
 - Elapsed time ticks locally. The server is checked every five minutes, before
   changes, and on Refresh. Refresh also reloads projects, workspaces and recents.
 - Projects refresh at least daily when synchronization runs.

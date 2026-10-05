@@ -26,8 +26,33 @@ Panel {
     }
     function primaryAction() {
         if (!start.enabled) return;
+        suggesting = false;
         var action = pomodoroMode ? (pomo.status === "running" ? "pomo_pause" : "pomo_start") : (state.current ? "stop" : "start");
         act(action, {description: description.text, project_id: projectId});
+    }
+    property bool suggesting: false
+    readonly property var completions: {
+        var query = description.text.trim().toLowerCase();
+        if (!query) return [];
+        var seen = {};
+        return (state.recent || []).filter(entry => {
+            var title = (entry.description || "").trim();
+            var key = JSON.stringify([title.toLowerCase(), entry.project_id]);
+            if (entry.workspace_id !== state.workspace || !title || title.toLowerCase().indexOf(query) < 0 || seen[key]) return false;
+            seen[key] = true;
+            return true;
+        }).slice(0, 8);
+    }
+    function completeDescription(index) {
+        var entry = completions[index];
+        if (!entry) return;
+        description.text = entry.description;
+        var project = (state.projects || []).find(p => p.id === entry.project_id && p.workspace_id === state.workspace);
+        projectId = project ? project.id : null;
+        projectName = project ? project.name : "No project";
+        suggesting = false;
+        description.forceActiveFocus();
+        description.cursorPosition = description.text.length;
     }
     property bool pickingProject: false
     property bool pickingWorkspace: false
@@ -40,7 +65,7 @@ Panel {
     implicitWidth: revealed ? button.implicitWidth : 0
     implicitHeight: revealed ? button.implicitHeight : 0
     visible: revealed
-    onOpenedChanged: if (opened) { account = !state.connected; if (pomo.status !== "idle") pomodoroMode = true; }
+    onOpenedChanged: { suggesting = false; if (opened) { account = !state.connected; if (pomo.status !== "idle") pomodoroMode = true; } }
     Connections {
         target: root.service
         function onStateChanged() {
@@ -262,7 +287,23 @@ Panel {
                             Layout.minimumWidth: 0
                             placeholderText: "What are you working on?"
                             enabled: !root.pomoLocked
-                            onAccepted: if (!root.state.current && root.pomo.status !== "running") root.primaryAction()
+                            onTextEdited: { root.suggesting = true; suggestions.currentIndex = 0; }
+                            Keys.onDownPressed: event => {
+                                if (suggestions.visible) suggestions.currentIndex = Math.min(suggestions.currentIndex + 1, suggestions.count - 1);
+                                else event.accepted = false;
+                            }
+                            Keys.onUpPressed: event => {
+                                if (suggestions.visible) suggestions.currentIndex = Math.max(0, suggestions.currentIndex - 1);
+                                else event.accepted = false;
+                            }
+                            Keys.onEscapePressed: event => {
+                                if (suggestions.visible) root.suggesting = false;
+                                else event.accepted = false;
+                            }
+                            onAccepted: {
+                                if (suggestions.visible) root.completeDescription(suggestions.currentIndex);
+                                else if (!root.state.current && root.pomo.status !== "running") root.primaryAction();
+                            }
                         }
                         Text {
                             text: root.pomodoroMode && root.service ? root.service.pomodoroText : (root.service && root.state.current ? root.service.elapsed : "0:00:00")
@@ -298,6 +339,29 @@ Panel {
                             Controls.ToolTip.text: text
                             Controls.ToolTip.delay: 400
                             onClicked: root.primaryAction()
+                        }
+                    }
+                    ListView {
+                        id: suggestions
+                        visible: root.suggesting && count > 0 && !root.pomoLocked
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: Math.min(count * Style.space(32), Style.space(128))
+                        model: root.completions
+                        clip: true
+                        boundsBehavior: Flickable.StopAtBounds
+                        onCurrentIndexChanged: if (currentIndex >= 0) positionViewAtIndex(currentIndex, ListView.Contain)
+                        delegate: Button {
+                            required property var modelData
+                            required property int index
+                            width: ListView.view.width
+                            height: Style.space(32)
+                            text: root.fit(modelData.description + " · " + root.projectLabel(modelData.project_id))
+                            tooltipText: modelData.description + " · " + root.projectLabel(modelData.project_id)
+                            leftAlign: true
+                            selected: suggestions.currentIndex === index
+                            focusable: true
+                            onActiveFocusChanged: if (activeFocus) suggestions.currentIndex = index
+                            onClicked: root.completeDescription(index)
                         }
                     }
                     RowLayout {
