@@ -14,7 +14,7 @@ From a checkout of this repository:
 
 ```sh
 mkdir -p ~/.config/omarchy/plugins/fabi.toggl
-cp manifest.json Service.qml TogglWidget.qml backend.py pomodoro.py ~/.config/omarchy/plugins/fabi.toggl/
+cp manifest.json Service.qml TogglWidget.qml backend.py pomodoro.py local_ipc.py ~/.config/omarchy/plugins/fabi.toggl/
 ```
 
 Back up `~/.config/omarchy/shell.json`, then add `{"id": "fabi.toggl"}` to the
@@ -88,6 +88,10 @@ Private state: `${XDG_STATE_HOME:-~/.local/state}/omarchy/toggl/`.
 The state directory is mode 700 and cache files mode 600. Only explicitly selected
 API response fields are cached, so the `/me` response's API token is discarded.
 A file lock prevents two helper instances from changing timers simultaneously.
+The widget communicates with that helper over an owner-only Unix socket, including
+when a custom bar cannot expose plugin services. State updates are pushed locally;
+opening the popup does not consume API requests. The connection retries after a
+helper restart, without replaying timer or account actions.
 
 Run tests without an account:
 
@@ -128,3 +132,5 @@ popup without stopping an active timer.
 Version 1.2.3 adds an outer ring to the small bar mark and replaces the Pomodoro
 text button with a circled tomato icon. The idle bar icon uses the same dimmed
 style as Omarchy’s timer widget; the inactive tomato uses the theme’s muted color.
+
+Version 1.2.4 fixes an unresponsive account panel under custom replacement bars.

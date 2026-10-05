@@ -9,7 +9,9 @@ Panel {
     id: root
     moduleName: "fabi.toggl"
     manageIpc: false
-    readonly property var service: bar?.shell?.serviceFor("fabi.toggl") || null
+    // Replacement bars intentionally cannot expose another plugin's service.
+    Service { id: client; clientOnly: true }
+    readonly property var service: client
     readonly property var state: service ? service.state : ({})
     property bool account: false
     property bool pomodoroMode: false

@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import subprocess
 from pomodoro import Pomodoro
+from local_ipc import Server
 import sys
 import time
 import urllib.request
@@ -25,6 +26,7 @@ class Backend:
             self.data = json.loads(self.path.read_text())
         except (OSError, ValueError):
             self.data = {}
+        self.publisher = None
         self.token = ''
         self.online = False
         self.message = 'Connect your Toggl account'
@@ -39,8 +41,11 @@ class Backend:
         os.replace(temporary, self.path)
 
     def emit(self):
-        print(json.dumps(dict(self.data, connected=bool(self.token), online=self.online,
-                              busy=self.busy, message=self.message)), flush=True)
+        line = json.dumps(dict(self.data, connected=bool(self.token), online=self.online,
+                               busy=self.busy, message=self.message))
+        print(line, flush=True)
+        if self.publisher:
+            self.publisher((line + "\n").encode())
 
     def secret(self, action, token=None):
         command = ['secret-tool', action]
@@ -263,13 +268,15 @@ def main():
         fcntl.flock(lock, fcntl.LOCK_EX|fcntl.LOCK_NB)
     except BlockingIOError:
         return
-    backend.emit()
-    backend.handle({'action':'init'})
     # A bounded queue keeps stdin reading separate from serialized API operations.
     # This avoids buffered readline/select races and lets deadlines fire without UI input.
     import queue
     import threading
     inbox = queue.Queue(maxsize=32)
+    server = Server(backend.directory/'helper.sock', inbox)
+    backend.publisher = server.publish
+    backend.emit()
+    backend.handle({'action':'init'})
     def read_input():
         for line in sys.stdin:
             try:
@@ -280,16 +287,19 @@ def main():
                 pass
         inbox.put(None)
     threading.Thread(target=read_input, daemon=True).start()
-    while True:
-        if backend.pomo.due():
-            backend.handle({'action': 'pomo_tick'})
-        try:
-            command = inbox.get(timeout=1)
-        except queue.Empty:
-            continue
-        if command is None:
-            break
-        backend.handle(command)
+    try:
+        while True:
+            if backend.pomo.due():
+                backend.handle({'action': 'pomo_tick'})
+            try:
+                command = inbox.get(timeout=1)
+            except queue.Empty:
+                continue
+            if command is None:
+                break
+            backend.handle(command)
+    finally:
+        server.close()
 
 if __name__ == '__main__':
     main()

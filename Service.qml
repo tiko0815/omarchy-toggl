@@ -4,6 +4,7 @@ import Quickshell.Io
 
 Item {
     id: root
+    property bool clientOnly: false
     property var settings: ({})
     property var state: ({connected: false, online: false, busy: true, message: "Loading Toggl…"})
     readonly property var pomodoro: state.pomodoro || {phase: "focus", status: "idle", completed: 0, remaining: 1500, deadline: 0}
@@ -31,7 +32,7 @@ Item {
     }
     Process {
         id: helper
-        command: ["python3", "-B", "-u", Qt.resolvedUrl("backend.py").toString().replace("file://", "")]
+        command: ["python3", "-B", "-u", Qt.resolvedUrl(root.clientOnly ? "local_ipc.py" : "backend.py").toString().replace("file://", "")]
         stdinEnabled: true
         running: true
         stdout: SplitParser {
@@ -41,14 +42,15 @@ Item {
         }
         onExited: {
             root.pending = false;
-            root.state = Object.assign({}, root.state, {busy: false, online: false, message: "Toggl helper stopped. Restarting…"});
+            root.state = Object.assign({}, root.state, {busy: false, online: false, message: root.clientOnly ? "Reconnecting to Toggl helper…" : "Toggl helper stopped. Restarting…"});
             restart.restart();
         }
     }
     Timer { id: restart; interval: 5000; onTriggered: helper.running = true }
     Timer { interval: 1000; running: !!root.state.current || root.pomodoro.status === "running"; repeat: true; onTriggered: root.now = Date.now() }
-    Timer { interval: 300000; running: true; repeat: true; onTriggered: if (root.state.connected) root.act("poll") }
+    Timer { interval: 300000; running: !root.clientOnly; repeat: true; onTriggered: if (root.state.connected) root.act("poll") }
     IpcHandler {
+        enabled: !root.clientOnly
         target: "fabi.toggl"
         function status(): string { return JSON.stringify({connected: !!root.state.connected, online: !!root.state.online, busy: root.busy, running: !!root.state.current, message: root.state.message}); }
     }
