@@ -132,7 +132,14 @@ Panel {
             Text {
                 visible: !!root.state.current || root.pomo.status === "running" || root.pomo.status === "paused"
                 anchors.verticalCenter: parent.verticalCenter
-                text: root.service ? (["running", "paused"].indexOf(root.pomo.status) >= 0 ? root.service.pomodoroText : root.service.elapsed) : ""
+                text: {
+                    if (!root.service) return "";
+                    if (["running", "paused"].indexOf(root.pomo.status) >= 0) {
+                        var seconds = root.pomo.status === "running" ? root.pomo.deadline - root.service.now / 1000 : root.pomo.remaining;
+                        return Math.max(0, Math.ceil(seconds / 60)) + "m";
+                    }
+                    return root.service.elapsed.slice(0, -3);
+                }
                 color: button.foreground
                 font.family: Style.font.family
                 font.pixelSize: Style.font.body
@@ -444,7 +451,7 @@ Panel {
                     implicitHeight: Math.max(refreshButton.implicitHeight, accountButton.implicitHeight, openButton.implicitHeight)
                     Button { id: refreshButton; anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Refresh"; focusable: true; enabled: root.state.connected && root.service && !root.service.busy; onClicked: root.act("refresh") }
                     Button { id: accountButton; anchors.centerIn: parent; text: root.account ? "Back" : "Account"; focusable: true; onClicked: root.account = !root.account }
-                    Button { id: openButton; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "Open Toggl ↗"; focusable: true; onClicked: Quickshell.execDetached(["xdg-open", "https://track.toggl.com/timer"]) }
+                    Button { id: openButton; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "Toggl"; focusable: true; onClicked: Quickshell.execDetached(["xdg-open", "https://track.toggl.com/timer"]) }
                 }
             }
         }

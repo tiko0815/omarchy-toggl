@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "fabi.toggl",
   "name": "Toggl Track",
-  "version": "1.2.7",
+  "version": "1.2.8",
   "author": "Fabian",
   "description": "Compact Toggl timer with automatically tracked Pomodoro focus sessions",
   "kinds": [
