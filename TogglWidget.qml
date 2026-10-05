@@ -56,6 +56,7 @@ Panel {
     }
     property bool pickingProject: false
     property bool pickingWorkspace: false
+    readonly property bool canPickWorkspace: (state.workspaces || []).length > 1
     readonly property string workspaceName: ((state.workspaces || []).find(w => w.id === state.workspace) || {}).name || "Choose workspace"
     property var projectId: null
     property string projectName: "No project"
@@ -178,16 +179,18 @@ Panel {
                     Button {
                         Layout.fillWidth: true
                         Layout.minimumWidth: 0
+                        visible: !root.state.connected || root.canPickWorkspace
                         text: root.state.connected ? metrics.elidedText(root.workspaceName + " ▾", Qt.ElideRight, Math.max(0, popup.contentWidth - Style.space(105))) : "Toggl Track"
                         tooltipText: root.workspaceName
                         focusable: true
                         enabled: !!root.state.connected && !root.pomoLocked
                         onClicked: root.pickingWorkspace = !root.pickingWorkspace
                     }
+                    Item { Layout.fillWidth: true; visible: !!root.state.connected && !root.canPickWorkspace }
                     Button { text: root.account ? "Back" : "Account"; focusable: true; onClicked: root.account = !root.account }
                 }
                 ListView {
-                    visible: root.pickingWorkspace && !!root.state.connected
+                    visible: root.pickingWorkspace && root.canPickWorkspace && !!root.state.connected
                     Layout.fillWidth: true
                     Layout.preferredHeight: Math.min(count * Style.space(32), Style.space(96))
                     model: root.state.workspaces || []
