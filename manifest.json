@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "id": "fabi.toggl",
-  "name": "Toggl Track",
-  "version": "1.2.8",
+  "name": "Simple Toggl Tracker",
+  "version": "1.2.9",
   "author": "Fabian",
-  "description": "Compact Toggl timer with automatically tracked Pomodoro focus sessions",
+  "description": "Compact Toggl time tracker with description autocomplete and automatically tracked Pomodoro focus sessions",
   "kinds": [
     "service",
     "bar-widget"
@@ -15,8 +15,8 @@
     "barWidget": "TogglWidget.qml"
   },
   "barWidget": {
-    "displayName": "Toggl Track",
-    "description": "Start, stop and resume Toggl timers",
+    "displayName": "Simple Toggl Tracker",
+    "description": "Start and stop Toggl timers, reuse task descriptions, and track Pomodoro focus sessions",
     "category": "Time",
     "allowMultiple": false
   }

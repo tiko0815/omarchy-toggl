@@ -1,4 +1,4 @@
-# Toggl Track for Omarchy
+# Simple Toggl Tracker for Omarchy
 
 Compact Quickshell bar plugin with Start/Stop, project and workspace selection,
 and Pomodoro focus sessions automatically tracked in Toggl. There is no recent list. The desktop theme and shell typography
