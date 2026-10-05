@@ -12,16 +12,30 @@ Panel {
     readonly property var service: bar?.shell?.serviceFor("fabi.toggl") || null
     readonly property var state: service ? service.state : ({})
     property bool account: false
+    property bool pomodoroMode: false
+    readonly property var pomo: service ? service.pomodoro : ({phase: "focus", status: "idle", completed: 0})
+    readonly property bool pomoLocked: ["running", "starting", "stop_pending"].indexOf(pomo.status) >= 0
+    readonly property string actionLabel: {
+        if (!pomodoroMode) return root.state.current ? "Stop timer" : "Start timer";
+        if (pomo.status === "running") return "Pause " + service.pomodoroLabel.toLowerCase();
+        if (pomo.status === "finished") return "Start " + service.pomodoroNext.toLowerCase();
+        if (pomo.status === "paused") return "Resume " + service.pomodoroLabel.toLowerCase();
+        return "Start " + (service ? service.pomodoroLabel.toLowerCase() : "focus");
+    }
+    function primaryAction() {
+        if (!start.enabled) return;
+        var action = pomodoroMode ? (pomo.status === "running" ? "pomo_pause" : "pomo_start") : (state.current ? "stop" : "start");
+        act(action, {description: description.text, project_id: projectId});
+    }
     property bool pickingProject: false
     property bool pickingWorkspace: false
     readonly property string workspaceName: ((state.workspaces || []).find(w => w.id === state.workspace) || {}).name || "Choose workspace"
     property var projectId: null
     property string projectName: "No project"
     readonly property var projects: (state.projects || []).filter(p => p.workspace_id === state.workspace && p.name.toLowerCase().indexOf(search.text.toLowerCase()) >= 0)
-    readonly property var recent: (state.recent || []).filter(e => e.workspace_id === state.workspace).slice(0, 5)
     implicitWidth: button.implicitWidth
     implicitHeight: button.implicitHeight
-    onOpenedChanged: if (opened) { account = !state.connected; }
+    onOpenedChanged: if (opened) { account = !state.connected; if (pomo.status !== "idle") pomodoroMode = true; }
     Connections {
         target: root.service
         function onStateChanged() {
@@ -63,11 +77,11 @@ Panel {
             id: barContents
             anchors.centerIn: parent
             spacing: Style.space(6)
-            TrackMark { width: Style.space(13); height: width; anchors.verticalCenter: parent.verticalCenter; ink: root.state.current ? Color.accent : button.foreground }
+            TrackMark { width: Style.space(13); height: width; anchors.verticalCenter: parent.verticalCenter; ink: root.state.current || root.pomo.status === "running" ? Color.accent : button.foreground }
             Text {
-                visible: !!root.state.current
+                visible: !!root.state.current || root.pomo.status === "running" || root.pomo.status === "paused"
                 anchors.verticalCenter: parent.verticalCenter
-                text: root.service ? root.service.elapsed : ""
+                text: root.service ? (["running", "paused"].indexOf(root.pomo.status) >= 0 ? root.service.pomodoroText : root.service.elapsed) : ""
                 color: button.foreground
                 font.family: Style.font.family
                 font.pixelSize: Style.font.body
@@ -92,48 +106,39 @@ Panel {
         open: root.opened
         centerOnBar: true
         focusTarget: content
-        contentWidth: popup.fittedContentWidth(Style.space(380))
+        contentWidth: popup.fittedContentWidth(Style.space(420))
         contentHeight: popup.fittedContentHeight(content.implicitHeight)
-        ColumnLayout {
-            id: content
+        Controls.ScrollView {
+            id: scroll
             width: parent.width
-            spacing: Style.space(12)
-            focus: true
-            Keys.onEscapePressed: root.close()
-            RowLayout {
-                Layout.fillWidth: true
-                TrackMark { ink: Color.accent }
-                Text { text: "Toggl Track"; font.bold: true; color: Color.foreground; font.family: Style.font.family; font.pixelSize: Style.font.body; Layout.fillWidth: true }
-                Button { text: root.account ? "Timer" : "Account"; focusable: true; onClicked: root.account = !root.account }
-            }
-            Text {
-                Layout.fillWidth: true
-                visible: !root.state.connected || !root.state.online
-                text: root.service && root.service.busy ? "Connecting…" : (root.state.message || "Loading…")
-                color: Color.foreground
-                opacity: 0.7
-                font.family: Style.font.family
-                font.pixelSize: Style.font.body
-                wrapMode: Text.Wrap
-                textFormat: Text.PlainText
-            }
-            Button {
-                visible: !!root.state.connected
-                Layout.fillWidth: true
-                text: root.fit(root.workspaceName + " ▾")
-                leftAlign: true
-                bordered: true
-                tooltipText: root.workspaceName
-                focusable: true
-                onClicked: root.pickingWorkspace = !root.pickingWorkspace
-            }
-                ListView {
-                    visible: root.state.connected && root.pickingWorkspace
+            height: popup.contentHeight
+            contentWidth: availableWidth
+            contentHeight: content.implicitHeight
+            clip: true
+            ColumnLayout {
+                id: content
+                width: scroll.availableWidth
+                spacing: Style.space(8)
+                focus: true
+                Keys.onEscapePressed: root.close()
+                RowLayout {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: Math.min(count * Style.space(35), Style.space(110))
-                    clip: true
+                    Button {
+                        Layout.fillWidth: true
+                        text: root.state.connected ? root.fit(root.workspaceName + " ▾") : "Toggl Track"
+                        tooltipText: root.workspaceName
+                        focusable: true
+                        enabled: !!root.state.connected && !root.pomoLocked
+                        onClicked: root.pickingWorkspace = !root.pickingWorkspace
+                    }
+                    Button { text: root.account ? "Back" : "Account"; focusable: true; onClicked: root.account = !root.account }
+                }
+                ListView {
+                    visible: root.pickingWorkspace && !!root.state.connected
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: Math.min(count * Style.space(32), Style.space(96))
                     model: root.state.workspaces || []
-                    spacing: Style.space(3)
+                    clip: true
                     boundsBehavior: Flickable.StopAtBounds
                     delegate: Button {
                         required property var modelData
@@ -141,13 +146,23 @@ Panel {
                         width: ListView.view.width
                         height: Style.space(32)
                         text: root.fit(modelData.name)
-                        tooltipText: modelData.name
                         selected: modelData.id === root.state.workspace
                         focusable: true
-                        enabled: root.service && !root.service.busy
+                        enabled: root.service && !root.service.busy && !root.pomoLocked
                         onActiveFocusChanged: if (activeFocus) ListView.view.positionViewAtIndex(index, ListView.Contain)
-                        onClicked: { root.act("workspace", {id: modelData.id}); root.pickingWorkspace = false; root.pickingProject = false; }
+                        onClicked: { root.act("workspace", {id: modelData.id}); root.pickingWorkspace = false; }
                     }
+                }
+                Text {
+                    Layout.fillWidth: true
+                    visible: !root.state.connected || !root.state.online || ["review", "stop_pending", "starting"].indexOf(root.pomo.status) >= 0
+                    text: root.pomo.status === "review" ? "Check the Toggl timer before resetting Pomodoro; its start could not be confirmed." : root.pomo.status === "stop_pending" ? "Toggl may still be running. Refresh to confirm the stop." : (root.state.message || "Loading…")
+                    color: Color.foreground
+                    opacity: 0.8
+                    wrapMode: Text.Wrap
+                    textFormat: Text.PlainText
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.bodySmall
                 }
             ColumnLayout {
                 visible: root.account
@@ -180,153 +195,138 @@ Panel {
                 }
                 Button { visible: root.state.connected; text: "Disconnect account"; focusable: true; enabled: root.service && !root.service.busy; onClicked: root.act("disconnect") }
             }
-            ColumnLayout {
-                visible: !root.account
-                Layout.fillWidth: true
-                spacing: Style.space(8)
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: Style.space(116)
-                    radius: Style.space(6)
-                    color: Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.045)
-                    ColumnLayout {
-                        anchors.fill: parent
-                        anchors.margins: Style.space(14)
-                        spacing: Style.space(5)
-                        RowLayout {
-                            Layout.alignment: Qt.AlignHCenter
-                            spacing: Style.space(6)
-                            Rectangle { width: Style.space(5); height: width; radius: width / 2; color: root.state.current ? Color.accent : Color.muted }
-                            Text { text: root.state.current ? "Tracking time" : "Ready when you are"; color: Color.foreground; opacity: 0.7; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall }
-                        }
-                        Text {
-                            Layout.alignment: Qt.AlignHCenter
-                            text: root.state.current && root.service ? root.service.elapsed : "00:00:00"
-                            color: Color.foreground
-                            font.family: Style.font.family
-                            font.pixelSize: Style.space(34)
-                        }
-                        Text {
-                            Layout.fillWidth: true
-                            horizontalAlignment: Text.AlignHCenter
-                            text: root.state.current ? (root.state.current.description || "Untitled") + " · " + root.projectLabel(root.state.current.project_id) : "Start a fresh entry or pick up a recent one"
-                            color: Color.foreground
-                            opacity: 0.65
-                            font.family: Style.font.family
-                            font.pixelSize: Style.font.bodySmall
-                            elide: Text.ElideRight
-                            textFormat: Text.PlainText
-                        }
-                    }
-                }
-                TextField { id: description; Layout.fillWidth: true; placeholderText: "What are you working on?"; onAccepted: if (!root.state.current) start.clicked() }
-                Button { text: root.fit(root.projectName + " ▾"); tooltipText: root.projectName; Layout.fillWidth: true; focusable: true; onClicked: root.pickingProject = !root.pickingProject }
                 ColumnLayout {
-                    visible: root.pickingProject
+                    visible: !root.account
                     Layout.fillWidth: true
-                    TextField { id: search; Layout.fillWidth: true; placeholderText: "Search projects" }
-                    Button { text: "No project"; focusable: true; onClicked: { root.projectId = null; root.projectName = "No project"; root.pickingProject = false; } }
-                    ListView {
+                    spacing: Style.space(6)
+                    RowLayout {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: Math.min(count * Style.space(35), Style.space(130))
-                        clip: true
-                        model: root.projects
-                        spacing: Style.space(3)
-                        boundsBehavior: Flickable.StopAtBounds
-                        delegate: Button {
-                            required property var modelData
-                            required property int index
-                            width: ListView.view.width
-                        height: Style.space(32)
-                            text: root.fit(modelData.name)
-                        tooltipText: modelData.name
-                            focusable: true
-                            onActiveFocusChanged: if (activeFocus) ListView.view.positionViewAtIndex(index, ListView.Contain)
-                            onClicked: { root.projectId = modelData.id; root.projectName = modelData.name; root.pickingProject = false; }
+                        spacing: Style.space(10)
+                        TextField {
+                            id: description
+                            Layout.fillWidth: true
+                            Layout.minimumWidth: 0
+                            placeholderText: "What are you working on?"
+                            enabled: !root.pomoLocked
+                            onAccepted: if (!root.state.current && root.pomo.status !== "running") root.primaryAction()
+                        }
+                        Text {
+                            text: root.pomodoroMode && root.service ? root.service.pomodoroText : (root.service && root.state.current ? root.service.elapsed : "0:00:00")
+                            color: Color.foreground
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.body
+                        }
+                        Controls.AbstractButton {
+                            id: start
+                            implicitWidth: Style.space(34)
+                            implicitHeight: implicitWidth
+                            text: root.actionLabel
+                            activeFocusOnTab: true
+                            Accessible.name: text
+                            enabled: root.service && !root.service.busy && root.state.connected &&
+                                (root.pomodoroMode ? (["starting", "stop_pending", "review"].indexOf(root.pomo.status) < 0 && (root.pomo.phase !== "focus" || root.service.canChange || root.pomo.status === "running")) : root.service.canChange && !root.pomoLocked)
+                            background: Rectangle {
+                                radius: width / 2
+                                color: Color.accent
+                                opacity: !start.enabled ? 0.4 : (start.down ? 0.7 : start.hovered ? 0.85 : 1)
+                                border.width: start.activeFocus ? Style.space(2) : 0
+                                border.color: Color.foreground
+                            }
+                            contentItem: Text {
+                                text: root.pomodoroMode ? (root.pomo.status === "running" ? "Ⅱ" : "▶") : (root.state.current ? "■" : "▶")
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                                color: root.accentInk()
+                                font.family: Style.font.family
+                                font.pixelSize: Style.space(17)
+                            }
+                            Controls.ToolTip.visible: hovered
+                            Controls.ToolTip.text: text
+                            Controls.ToolTip.delay: 400
+                            onClicked: root.primaryAction()
                         }
                     }
-                }
-                Controls.AbstractButton {
-                    id: start
-                    Layout.fillWidth: true
-                    implicitHeight: Style.space(44)
-                    text: root.service && root.service.busy ? "Please wait…" : (root.state.current ? "Stop timer" : "Start timer")
-                    enabled: root.service && root.service.canChange
-                    activeFocusOnTab: true
-                    Accessible.name: text
-                    background: Rectangle {
-                        radius: Style.space(5)
-                        color: Color.accent
-                        opacity: !start.enabled ? 0.4 : (start.down ? 0.75 : (start.hovered ? 0.9 : 1))
-                        border.width: start.activeFocus ? Style.space(2) : 0
-                        border.color: Color.foreground
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Button { Layout.fillWidth: true; leftAlign: true; text: root.fit(root.projectName + " ▾"); tooltipText: root.projectName; focusable: true; enabled: !root.pomoLocked; onClicked: root.pickingProject = !root.pickingProject }
+                        Button { text: "Pomodoro"; selected: root.pomodoroMode; focusable: true; onClicked: root.pomodoroMode = !root.pomodoroMode }
                     }
-                    contentItem: Item {
-                        Row {
-                            anchors.centerIn: parent
-                            spacing: Style.space(9)
-                            Text { text: root.state.current ? "■" : "▶"; color: root.accentInk(); font.family: Style.font.family; font.pixelSize: Style.font.body }
-                            Text { text: start.text; color: root.accentInk(); font.family: Style.font.family; font.pixelSize: Style.font.body; font.bold: true }
+                    ColumnLayout {
+                        visible: root.pickingProject
+                        Layout.fillWidth: true
+                        TextField { id: search; Layout.fillWidth: true; placeholderText: "Search projects" }
+                        Button { text: "No project"; focusable: true; onClicked: { root.projectId = null; root.projectName = "No project"; root.pickingProject = false; } }
+                        ListView {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: Math.min(count * Style.space(32), Style.space(128))
+                            clip: true
+                            model: root.projects
+                            boundsBehavior: Flickable.StopAtBounds
+                            delegate: Button {
+                                required property var modelData
+                                required property int index
+                                width: ListView.view.width
+                                height: Style.space(32)
+                                text: root.fit(modelData.name)
+                                tooltipText: modelData.name
+                                focusable: true
+                                onActiveFocusChanged: if (activeFocus) ListView.view.positionViewAtIndex(index, ListView.Contain)
+                                onClicked: { root.projectId = modelData.id; root.projectName = modelData.name; root.pickingProject = false; }
+                            }
                         }
                     }
-                    onClicked: if (enabled) root.act(root.state.current ? "stop" : "start", {description: description.text, project_id: root.projectId})
-                }
-                Button {
-                    visible: !!root.state.current
-                    Layout.fillWidth: true
-                    text: "Switch to new entry"
-                    focusable: true
-                    enabled: root.service && root.service.canChange
-                    onClicked: root.act("start", {description: description.text, project_id: root.projectId})
+                    Text {
+                        visible: !!root.state.current && !root.pomodoroMode
+                        Layout.fillWidth: true
+                        text: "Tracking · " + ((root.state.current || {}).description || "Untitled") + " · " + root.projectLabel((root.state.current || {}).project_id)
+                        elide: Text.ElideRight
+                        textFormat: Text.PlainText
+                        color: Color.foreground
+                        opacity: 0.65
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.bodySmall
+                    }
+                    ColumnLayout {
+                        visible: root.pomodoroMode
+                        Layout.fillWidth: true
+                        spacing: Style.space(6)
+                        Rectangle { Layout.fillWidth: true; height: 1; color: Color.foreground; opacity: 0.12 }
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Repeater {
+                                model: [{phase: "focus", label: "Focus 25"}, {phase: "short", label: "Break 5"}, {phase: "long", label: "Long 15"}]
+                                Button {
+                                    required property var modelData
+                                    Layout.fillWidth: true
+                                    text: modelData.label
+                                    selected: root.pomo.phase === modelData.phase
+                                    focusable: true
+                                    enabled: root.service && !root.service.busy && ["idle", "finished"].indexOf(root.pomo.status) >= 0
+                                    onClicked: root.act("pomo_select", {phase: modelData.phase})
+                                }
+                            }
+                        }
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Text {
+                                Layout.fillWidth: true
+                                text: root.pomo.status === "finished" ? "Done · next: " + root.service.pomodoroNext : root.pomo.status === "paused" ? "Paused" : "Focus " + (root.pomo.completed % 4 + 1) + "/4 · " + (root.pomo.phase === "focus" ? "tracked in Toggl" : "untracked break")
+                                color: Color.foreground
+                                opacity: 0.7
+                                font.family: Style.font.family
+                                font.pixelSize: Style.font.bodySmall
+                            }
+                            Button { text: "Reset"; focusable: true; enabled: root.service && !root.service.busy; onClicked: root.act("pomo_reset") }
+                        }
+                    }
                 }
                 Rectangle { Layout.fillWidth: true; height: 1; color: Color.foreground; opacity: 0.12 }
-                Text { visible: root.recent.length > 0; text: "Recent"; color: Color.foreground; opacity: 0.7; font.family: Style.font.family; font.pixelSize: Style.font.body }
-                ListView {
+                RowLayout {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: Math.min(count * Style.space(51), Style.space(200))
-                    clip: true
-                    model: root.recent
-                    spacing: Style.space(3)
-                    boundsBehavior: Flickable.StopAtBounds
-                    delegate: Controls.AbstractButton {
-                        id: recentButton
-                        required property var modelData
-                        required property int index
-                        width: ListView.view.width
-                        height: Style.space(48)
-                        activeFocusOnTab: true
-                        enabled: root.service && root.service.canChange
-                        Accessible.name: (root.state.current ? "Switch to " : "Resume ") + (modelData.description || "Untitled")
-                        background: Rectangle {
-                            radius: Style.space(4)
-                            color: Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, recentButton.hovered || recentButton.activeFocus ? 0.08 : 0)
-                            border.width: recentButton.activeFocus ? 1 : 0
-                            border.color: Color.accent
-                        }
-                        contentItem: RowLayout {
-                            spacing: Style.space(12)
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                Layout.leftMargin: Style.space(8)
-                                spacing: Style.space(2)
-                                Text { Layout.fillWidth: true; text: recentButton.modelData.description || "Untitled"; textFormat: Text.PlainText; elide: Text.ElideRight; color: Color.foreground; font.family: Style.font.family; font.pixelSize: Style.font.body }
-                                Text { Layout.fillWidth: true; text: root.projectLabel(recentButton.modelData.project_id); textFormat: Text.PlainText; elide: Text.ElideRight; color: Color.foreground; opacity: 0.55; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall }
-                            }
-                            Text { Layout.rightMargin: Style.space(10); text: "▶"; color: Color.accent; opacity: recentButton.enabled ? 1 : 0.4; font.family: Style.font.family; font.pixelSize: Style.font.body }
-                        }
-                        Controls.ToolTip.visible: hovered
-                        Controls.ToolTip.text: Accessible.name + " · " + root.projectLabel(modelData.project_id)
-                        Controls.ToolTip.delay: 500
-                        onActiveFocusChanged: if (activeFocus) ListView.view.positionViewAtIndex(index, ListView.Contain)
-                        onClicked: root.act("resume", {id: modelData.id})
-                    }
+                    Button { text: "Refresh"; focusable: true; enabled: root.state.connected && root.service && !root.service.busy; onClicked: root.act("refresh") }
+                    Item { Layout.fillWidth: true }
+                    Button { text: "Open Toggl ↗"; focusable: true; onClicked: Quickshell.execDetached(["xdg-open", "https://track.toggl.com/timer"]) }
                 }
-            }
-            RowLayout {
-                Layout.fillWidth: true
-                Button { text: "Refresh"; focusable: true; enabled: root.state.connected && root.service && !root.service.busy; onClicked: root.act("refresh") }
-                Item { Layout.fillWidth: true }
-                Button { text: "Open Toggl ↗"; focusable: true; onClicked: Quickshell.execDetached(["xdg-open", "https://track.toggl.com/timer"]) }
             }
         }
     }

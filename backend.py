@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+from pomodoro import Pomodoro
 import sys
 import time
 import urllib.request
@@ -28,6 +29,7 @@ class Backend:
         self.online = False
         self.message = 'Connect your Toggl account'
         self.busy = False
+        self.pomo = Pomodoro(self)
 
     def save(self):
         temporary = self.path.with_suffix('.tmp')
@@ -135,11 +137,12 @@ class Backend:
         self.online = True
         self.message = 'Synced with Toggl'
 
-    def mutate(self, command):
+    def mutate(self, command, prechecked=False):
         if not self.online or self.data.get('uncertain'):
             raise Failure('Refresh to confirm the timer before making changes.')
         expected = command.get('expected_id')
-        self.sync()
+        if not prechecked:
+            self.sync()
         current = self.data.get('current')
         if (current or {}).get('id') != expected:
             raise Failure('The timer changed on another device. Review it and try again.')
@@ -164,7 +167,15 @@ class Backend:
         self.data['uncertain'] = True
         self.save()
         if current:
-            stopped = self.request('PATCH', '/workspaces/%s/time_entries/%s/stop' % (current['workspace_id'], current['id']))
+            if command.get('stop_at') is not None:
+                started = dt.datetime.fromisoformat(current['start'].replace('Z', '+00:00')).timestamp()
+                stopped_at = started + max(0, int(command['stop_at']-started))
+                stopped = self.request('PUT', '/workspaces/%s/time_entries/%s' % (current['workspace_id'], current['id']),
+                    dict(start=current['start'], stop=dt.datetime.fromtimestamp(stopped_at, dt.timezone.utc).isoformat().replace('+00:00','Z'),
+                         duration=max(0, int(stopped_at-started)), workspace_id=current['workspace_id'],
+                         description=current.get('description') or '', project_id=current.get('project_id')))
+            else:
+                stopped = self.request('PATCH', '/workspaces/%s/time_entries/%s/stop' % (current['workspace_id'], current['id']))
             self.data['current'] = None
             if stopped:
                 self.recent([stopped]+[e for e in self.data.get('recent', []) if e['id'] != stopped['id']])
@@ -177,6 +188,13 @@ class Backend:
         self.data['uncertain'] = False
         self.data['synced_at'] = time.time()
         self.message = 'Synced with Toggl'
+
+    @staticmethod
+    def fail(message):
+        raise Failure(message)
+
+    def notify(self, title, message):
+        subprocess.Popen(['notify-send', '--app-name=Toggl Pomodoro', title, message], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def handle(self, command):
         self.busy = True
@@ -194,9 +212,12 @@ class Backend:
                 self.token = self.secret('lookup')
                 if self.token:
                     self.sync()
+                    self.pomo.reconcile()
                 else:
                     self.message = 'Connect your Toggl account, or unlock your keyring and retry.'
             elif action == 'disconnect':
+                if self.pomo.state['status'] in ('running', 'starting', 'stop_pending', 'review') or self.pomo.state.get('entry_id'):
+                    raise Failure('Reset Pomodoro before disconnecting your account.')
                 self.secret('clear')
                 self.token = ''
                 self.data = {'calls': self.data.get('calls', []), 'blocked_until': self.data.get('blocked_until', 0)}
@@ -205,18 +226,27 @@ class Backend:
             elif action == 'workspace':
                 if command.get('id') in [w['id'] for w in self.data.get('workspaces', [])]:
                     self.data['workspace'] = command['id']
+            elif action == 'pomo_tick':
+                self.pomo.tick()
             elif self.token:
-                if action in ('refresh', 'poll'):
+                if action.startswith('pomo_'):
+                    self.pomo.action(command)
+                elif action in ('refresh', 'poll'):
                     if action == 'poll' and time.time()-self.data.get('synced_at',0)<300:
                         return
                     self.sync(full=action=='refresh')
+                    self.pomo.reconcile()
                 elif action in ('start', 'stop', 'resume'):
+                    if self.pomo.state['status'] in ('running', 'starting', 'stop_pending'):
+                        raise Failure('Pause or reset Pomodoro before changing the Toggl timer manually.')
                     self.mutate(command)
             else:
                 raise Failure('Connect your Toggl account first.')
         except (Failure, subprocess.TimeoutExpired) as error:
             self.online = False
             self.message = str(error) if isinstance(error, Failure) else 'Keyring did not respond. Unlock it and retry.'
+            if command.get('action') == 'pomo_tick':
+                self.notify('Pomodoro needs attention', 'Could not confirm that Toggl stopped. Open the timer and refresh. The Toggl entry may still be running.')
         except Exception:
             self.online = False
             self.message = 'Unable to complete the request. Refresh to recover.'
@@ -235,13 +265,31 @@ def main():
         return
     backend.emit()
     backend.handle({'action':'init'})
-    for line in sys.stdin:
+    # A bounded queue keeps stdin reading separate from serialized API operations.
+    # This avoids buffered readline/select races and lets deadlines fire without UI input.
+    import queue
+    import threading
+    inbox = queue.Queue(maxsize=32)
+    def read_input():
+        for line in sys.stdin:
+            try:
+                command = json.loads(line)
+                if isinstance(command, dict):
+                    inbox.put(command)
+            except ValueError:
+                pass
+        inbox.put(None)
+    threading.Thread(target=read_input, daemon=True).start()
+    while True:
+        if backend.pomo.due():
+            backend.handle({'action': 'pomo_tick'})
         try:
-            command = json.loads(line)
-            if isinstance(command, dict):
-                backend.handle(command)
-        except ValueError:
-            pass
+            command = inbox.get(timeout=1)
+        except queue.Empty:
+            continue
+        if command is None:
+            break
+        backend.handle(command)
 
 if __name__ == '__main__':
     main()

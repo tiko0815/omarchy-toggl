@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "id": "fabi.toggl",
   "name": "Toggl Track",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": "Fabian",
-  "description": "Quick Toggl tracking with secure account setup and native Omarchy styling",
+  "description": "Compact Toggl timer with automatically tracked Pomodoro focus sessions",
   "kinds": [
     "service",
     "bar-widget"

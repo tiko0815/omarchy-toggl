@@ -1,12 +1,12 @@
 # Toggl Track for Omarchy
 
-Native Quickshell bar plugin with Start, Stop, Switch timer, recent-entry Resume,
-project search and workspace selection. The desktop theme and shell typography
+Compact Quickshell bar plugin with Start/Stop, project and workspace selection,
+and Pomodoro focus sessions automatically tracked in Toggl. There is no recent list. The desktop theme and shell typography
 are inherited through Omarchy's shared UI components.
 
 ## Installation
 
-Requires Omarchy's Quickshell plugin system, Python 3, `secret-tool` (libsecret),
+Requires `notify-send` for Pomodoro completion alerts, plus Omarchy's Quickshell plugin system, Python 3, `secret-tool` (libsecret),
 a working desktop Secret Service/keyring, and `xdg-open`. There are no third-party
 Python dependencies. This is an unofficial Toggl Track integration.
 
@@ -14,7 +14,7 @@ From a checkout of this repository:
 
 ```sh
 mkdir -p ~/.config/omarchy/plugins/fabi.toggl
-cp manifest.json Service.qml TogglWidget.qml backend.py ~/.config/omarchy/plugins/fabi.toggl/
+cp manifest.json Service.qml TogglWidget.qml backend.py pomodoro.py ~/.config/omarchy/plugins/fabi.toggl/
 ```
 
 Back up `~/.config/omarchy/shell.json`, then add `{"id": "fabi.toggl"}` to the
@@ -38,12 +38,10 @@ Toggl timer.
 ## Behavior
 
 - The primary button starts a timer when idle and stops it when running.
-- Start with an optional description and project. Switch timer stops the previous
-  entry before creating the next. Resume always creates a new entry.
+- Start with an optional description and project. Stop ends the current entry.
 - Elapsed time ticks locally. The server is checked every five minutes, before
   changes, and on Refresh. Refresh also reloads projects, workspaces and recents.
-- Projects refresh at least daily when synchronization runs. Five recent entries
-  in the selected workspace are shown; successful local stops update that list.
+- Projects refresh at least daily when synchronization runs.
 - A dot beside elapsed time means the display is stale. Refresh before changing
   timers after a connection error. Offline changes are not queued.
 - If another device changed the current timer, the action is canceled and the
@@ -55,6 +53,30 @@ Toggl timer.
   capped at 30 total requests per rolling hour. The budget survives shell reloads.
   Server quota responses pause requests for Retry-After (or an hour by default).
   Other clients using the account can consume quota independently.
+
+## Pomodoro
+
+Click **Pomodoro** to reveal the focus controls. The round play button starts a
+25-minute focus session and creates its Toggl entry using the selected project
+and description. Starting a focus session while another entry runs switches to
+a new entry. The button becomes Pause while the session runs.
+
+- Pausing stops the focus entry; resuming creates a new segment for the remaining
+  time. Reset stops the associated entry and resets the current phase.
+- Completed focus sessions stop automatically. A notification announces completion.
+- Short breaks last 5 minutes; every fourth focus session offers a 15-minute break.
+  Breaks are not tracked. Start each next phase yourself using the play button.
+- The bar shows the Pomodoro countdown while running or paused. Deadlines and
+  the session count survive closing the popup, shell restarts, and sleep.
+- A delayed automatic stop uses the original deadline, so sleep or lost connectivity
+  does not add that extra time to the focus entry. If a stop fails, **Refresh**
+  reconciles it; the Toggl entry may remain running until connectivity/quota returns.
+- A timer changed on another device is never stopped by Pomodoro. A detected
+  external stop or switch pauses the focus countdown.
+- An uncertain start requires reviewing the current Toggl timer and resetting
+  Pomodoro; it is never retried automatically. Do not start another entry blindly.
+- Automatic tracking uses the same API quota as manual tracking. Focus starts
+  require a connection; breaks use the local clock.
 
 ## Files and development
 
@@ -93,3 +115,6 @@ workspace ID so every workspace stays distinguishable.
 
 Version 1.1.0 adds a theme-aware power-ring bar icon, a larger elapsed-time
 display, a prominent Start/Stop button, and project labels on recent entries.
+
+Version 1.2.0 uses a compact timer row without the recent list and adds persisted
+Pomodoro sessions with automatic Toggl tracking and completion notifications.
