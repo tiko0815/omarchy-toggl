@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000">
+  <rect width="1600" height="1000" fill="#0c1512"/>
+  <rect x="40" y="40" width="1520" height="920" rx="12" fill="#111c18" stroke="#23372B" stroke-width="2"/>
+  <g font-family="JetBrainsMono Nerd Font, monospace">
+    <rect x="96" y="100" width="8" height="22" rx="2" fill="#509475"/>
+    <text x="123" y="118" fill="#81B8A8" font-size="18" letter-spacing="3">OMARCHY PLUGIN</text>
+    <text x="96" y="262" fill="#D6D5BC" font-size="64" font-weight="700">Simple</text>
+    <text x="96" y="344" fill="#D6D5BC" font-size="64" font-weight="700">Toggl Tracker</text>
+    <text x="98" y="416" fill="#C1C497" font-size="23">Time tracking, kept simple.</text>
+    <text x="98" y="484" fill="#81B8A8" font-size="18">One compact place to track work</text>
+    <text x="98" y="514" fill="#81B8A8" font-size="18">and stay focused.</text>
+    <g transform="translate(99 576)" fill="none" stroke="#509475" stroke-width="2.5">
+      <circle cx="13" cy="13" r="12"/>
+      <path d="M13 5v9l6 3"/>
+    </g>
+    <text x="145" y="598" fill="#C1C497" font-size="18">Toggl time tracking</text>
+    <g transform="translate(99 630)" fill="none" stroke="#509475" stroke-width="2.5">
+      <circle cx="13" cy="13" r="12"/>
+      <path d="m7 13 4 4 8-9"/>
+    </g>
+    <text x="145" y="652" fill="#C1C497" font-size="18">Automatically tracked focus sessions</text>
+    <g transform="translate(99 684)" fill="none" stroke="#509475" stroke-width="2.5">
+      <path d="M1 5h24M1 13h17M1 21h10"/>
+    </g>
+    <text x="145" y="706" fill="#C1C497" font-size="18">Description autocomplete</text>
+
+    <!-- A faithful, sample-data view of the compact widget and its bar timer. -->
+    <rect x="753" y="174" width="704" height="563" rx="8" fill="#090f0d"/>
+    <rect x="777" y="198" width="656" height="58" fill="#111c18" stroke="#23372B"/>
+    <text x="800" y="234" fill="#81B8A8" font-size="16">MON  10:30</text>
+    <g transform="translate(1250 215)" fill="none" stroke="#509475" stroke-width="2">
+      <circle cx="12" cy="12" r="11"/>
+      <path d="M12 5v7m-4-4a6 6 0 1 0 8 0"/>
+    </g>
+    <text x="1289" y="234" fill="#C1C497" font-size="18">18m</text>
+    <path d="M1248 253h90" stroke="#509475" stroke-width="3"/>
+    <rect x="792" y="274" width="626" height="435" fill="#111c18" stroke="#509475" stroke-width="2"/>
+
+    <circle cx="830" cy="324" r="18" fill="none" stroke="#53685B" stroke-width="1.5"/>
+    <g transform="translate(818 311) scale(25)" fill="none" stroke="#509475" stroke-width=".065" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M.5 .37C.14 .17 .03 .55 .22 .8C.36 .97 .67 .97 .8 .78C.99 .5 .83 .2 .5 .37Z"/>
+      <path d="M.5 .36 .31 .24 .48 .27 .56 .12 .59 .29 .76 .29 .62 .41Z" fill="#509475"/>
+    </g>
+    <rect x="863" y="300" width="346" height="49" fill="#19271f" stroke="#53685B"/>
+    <text x="881" y="331" fill="#C1C497" font-size="18">Design the next thing</text>
+    <text x="1227" y="331" fill="#C1C497" font-size="19">17:42</text>
+    <circle cx="1367" cy="324" r="24" fill="#509475"/>
+    <path d="M1361 316v16m12-16v16" stroke="#090f0d" stroke-width="4"/>
+    <text x="821" y="397" fill="#C1C497" font-size="18">Product design ▾</text>
+    <path d="M815 424h580" stroke="#23372B" stroke-width="2"/>
+    <rect x="815" y="448" width="181" height="44" rx="2" fill="#32473B"/>
+    <text x="905" y="476" text-anchor="middle" fill="#D6D5BC" font-size="17">Focus 25</text>
+    <text x="1105" y="476" text-anchor="middle" fill="#C1C497" font-size="17">Break 5</text>
+    <text x="1305" y="476" text-anchor="middle" fill="#C1C497" font-size="17">Long 15</text>
+    <text x="821" y="544" fill="#81B8A8" font-size="17">Focus 1/4 · tracked in Toggl</text>
+    <text x="1378" y="544" text-anchor="end" fill="#C1C497" font-size="17">Reset</text>
+    <path d="M815 594h580" stroke="#23372B" stroke-width="2"/>
+    <text x="821" y="649" fill="#C1C497" font-size="17">Refresh</text>
+    <text x="1105" y="649" text-anchor="middle" fill="#C1C497" font-size="17">Account</text>
+    <text x="1378" y="649" text-anchor="end" fill="#C1C497" font-size="17">Toggl</text>
+    <text x="1105" y="787" text-anchor="middle" fill="#81B8A8" font-size="15" letter-spacing="2">LESS CLUTTER. MORE FOCUS.</text>
+    <path d="M96 851h1408" stroke="#23372B" stroke-width="2"/>
+    <text x="98" y="902" fill="#81B8A8" font-size="16">OPEN SOURCE · MIT LICENSE</text>
+    <text x="1503" y="902" text-anchor="end" fill="#C1C497" font-size="16">tiko0815/omarchy-toggl</text>
+  </g>
+</svg>
