@@ -121,6 +121,6 @@ display, a prominent Start/Stop button, and project labels on recent entries.
 Version 1.2.0 uses a compact timer row without the recent list and adds persisted
 Pomodoro sessions with automatic Toggl tracking and completion notifications.
 
-Version 1.2.1 hides the idle bar icon, keeps clock-area hover access, and adds
-three theme-colored window circles: Close panel, Hide panel, and Open Toggl.
-Closing or hiding the panel never stops an active timer.
+Version 1.2.2 keeps the idle icon hidden with clock-area hover access and removes
+the three window circles from the header. Escape or an outside click closes the
+popup without stopping an active timer.
