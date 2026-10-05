@@ -138,3 +138,7 @@ text button with a circled tomato icon. The idle bar icon uses the same dimmed
 style as Omarchy’s timer widget; the inactive tomato uses the theme’s muted color.
 
 Version 1.2.4 fixes an unresponsive account panel under custom replacement bars.
+
+## License
+
+[MIT](LICENSE) © 2026 Fabian.
