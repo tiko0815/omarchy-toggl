@@ -134,4 +134,46 @@ class PomodoroTests(unittest.TestCase):
         put=[c for c in self.calls if c[0]=='PUT'][-1][2]
         self.assertEqual(put['duration'],1500)
 
+    def configure(self, **values):
+        self.b.pomo.action(dict(action='pomo_configure', settings=values))
+
+    def test_custom_durations_and_long_break_cadence(self):
+        self.configure(focus_minutes=2, short_minutes=1, long_minutes=3, long_every=2)
+        self.start(); self.assertEqual(remaining(self.b.pomo.state, self.now), 120)
+        self.now += 120; self.b.pomo.tick(); self.start()
+        self.assertEqual(self.b.pomo.state['phase'], 'short')
+        self.assertEqual(remaining(self.b.pomo.state, self.now), 60)
+        self.now += 60; self.b.pomo.tick(); self.start()
+        self.now += 120; self.b.pomo.tick(); self.start()
+        self.assertEqual(self.b.pomo.state['phase'], 'long')
+        self.assertEqual(remaining(self.b.pomo.state, self.now), 180)
+
+    def test_configuration_preserves_active_and_paused_countdowns(self):
+        self.start(); deadline = self.b.pomo.state['deadline']
+        self.configure(focus_minutes=40)
+        self.assertEqual(self.b.pomo.state['deadline'], deadline)
+        self.now += 60; self.b.pomo.action(dict(action='pomo_pause'))
+        self.configure(focus_minutes=45)
+        self.assertEqual(self.b.pomo.state['remaining'], 1440)
+        self.start(); self.assertEqual(remaining(self.b.pomo.state, self.now), 1440)
+        self.b.pomo.action(dict(action='pomo_reset'))
+        self.assertEqual(self.b.pomo.state['remaining'], 2700)
+
+    def test_settings_persist_without_account_or_api_calls(self):
+        self.b.token = ''
+        with patch('sys.stdout', new=io.StringIO()):
+            self.b.handle(dict(action='pomo_configure', settings=dict(focus_minutes=35, long_every=3)))
+        restored = Backend(self.tmp.name)
+        self.assertEqual(restored.pomo.duration('focus'), 2100)
+        self.assertEqual(restored.pomo.state['settings']['long_every'], 3)
+        self.assertEqual(self.calls, [])
+
+    def test_invalid_configuration_is_atomic(self):
+        for invalid in (0, -1, 181, 1.5, True, '25'):
+            with self.assertRaises(Failure):
+                self.configure(short_minutes=9, focus_minutes=invalid)
+            self.assertEqual(self.b.pomo.duration('short'), 300)
+        with self.assertRaises(Failure): self.configure(long_every=0)
+        with self.assertRaises(Failure): self.configure(unknown=3)
+
 if __name__=='__main__': unittest.main()

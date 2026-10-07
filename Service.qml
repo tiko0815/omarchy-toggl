@@ -13,7 +13,8 @@ Item {
         return String(Math.floor(seconds / 60)).padStart(2, "0") + ":" + String(seconds % 60).padStart(2, "0");
     }
     readonly property string pomodoroLabel: pomodoro.phase === "focus" ? "Focus" : pomodoro.phase === "short" ? "Short break" : "Long break"
-    readonly property string pomodoroNext: pomodoro.phase === "focus" ? (pomodoro.completed % 4 === 0 ? "Long break" : "Short break") : "Focus"
+    readonly property var pomodoroSettings: Object.assign({focus_minutes: 25, short_minutes: 5, long_minutes: 15, long_every: 4}, pomodoro.settings || {})
+    readonly property string pomodoroNext: pomodoro.phase === "focus" ? (pomodoro.completed % pomodoroSettings.long_every === 0 ? "Long break" : "Short break") : "Focus"
     property bool pending: false
     property double now: Date.now()
     readonly property bool busy: pending || !!state.busy

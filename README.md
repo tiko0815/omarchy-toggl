@@ -41,8 +41,11 @@ Toggl timer.
 
 ## Behavior
 
+- **Settings → Always show in menu bar** keeps the icon visible while idle. This option is saved in the Toggl bar entry in `shell.json`; turning it off restores hover reveal.
 - The primary button starts a timer when idle and stops it when running.
 - Start with an optional description and project. Stop ends the current entry.
+- The panel opens beside its bar item. The project picker closes when you click elsewhere.
+- Outlined Refresh and Settings icons sit beside the project selector. Open Toggl’s website from Settings.
 - Typing a description suggests matching cached entries from the selected workspace.
   Choose with the mouse or arrow keys and Enter to fill the description and project;
   selection does not start a timer. Escape dismisses suggestions. No recent list is
@@ -65,15 +68,17 @@ Toggl timer.
 ## Pomodoro
 
 Click the circled tomato icon beside the description to reveal the Pomodoro controls. The round play button starts a
-25-minute focus session and creates its Toggl entry using the selected project
-and description. Starting a focus session while another entry runs switches to
-a new entry. The button becomes Pause while the session runs.
+focus session (25 minutes by default) and creates its Toggl entry using the selected project
+and description. Stop or pause an active timer before switching Pomodoro mode.
+The button becomes Pause while the session runs.
 
+- **Settings** lets you change focus, short-break, and long-break minutes, plus the number of focus sessions before a long break. Values save automatically and survive restarts. Active and paused sessions keep their original duration; updated durations apply when starting a new phase or resetting.
 - Pausing stops the focus entry; resuming creates a new segment for the remaining
   time. Reset stops the associated entry and resets the current phase.
 - Completed focus sessions stop automatically. A notification announces completion.
-- Short breaks last 5 minutes; every fourth focus session offers a 15-minute break.
+- By default, short breaks last 5 minutes and every fourth focus session offers a 15-minute break.
   Breaks are not tracked. Start each next phase yourself using the play button.
+- Breaks use a steaming-cup bar icon. After a phase finishes, the bar item stays visible with **Break** or **Focus** until you start the next phase or reset.
 - The bar shows the Pomodoro countdown while running or paused. Deadlines and
   the session count survive closing the popup, shell restarts, and sleep.
 - A delayed automatic stop uses the original deadline, so sleep or lost connectivity

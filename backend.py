@@ -225,12 +225,17 @@ class Backend:
                     raise Failure('Reset Pomodoro before disconnecting your account.')
                 self.secret('clear')
                 self.token = ''
+                preferences = self.pomo.state.get('settings', {})
                 self.data = {'calls': self.data.get('calls', []), 'blocked_until': self.data.get('blocked_until', 0)}
+                self.pomo.state['settings'] = preferences
+                self.pomo.state['remaining'] = self.pomo.duration('focus')
                 self.online = False
                 self.message = 'Account disconnected. Any running Toggl timer continues.'
             elif action == 'workspace':
                 if command.get('id') in [w['id'] for w in self.data.get('workspaces', [])]:
                     self.data['workspace'] = command['id']
+            elif action == 'pomo_configure':
+                self.pomo.action(command)
             elif action == 'pomo_tick':
                 self.pomo.tick()
             elif self.token:

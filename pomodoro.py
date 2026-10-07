@@ -2,6 +2,12 @@
 import time
 
 DURATIONS = {'focus': 25 * 60, 'short': 5 * 60, 'long': 15 * 60}
+DEFAULT_SETTINGS = dict(focus_minutes=25, short_minutes=5, long_minutes=15, long_every=4)
+LIMITS = dict(focus_minutes=180, short_minutes=60, long_minutes=120, long_every=12)
+
+def settings(state):
+    return dict(DEFAULT_SETTINGS, **state.get('settings', {}))
+
 LABELS = {'focus': 'Focus', 'short': 'Short break', 'long': 'Long break'}
 
 def initial():
@@ -11,7 +17,7 @@ def remaining(state, now):
     return max(0, state['deadline']-now) if state['status']=='running' else state['remaining']
 
 def next_phase(state):
-    return ('long' if state['completed'] % 4 == 0 else 'short') if state['phase']=='focus' else 'focus'
+    return ('long' if state['completed'] % settings(state)['long_every'] == 0 else 'short') if state['phase']=='focus' else 'focus'
 
 class Pomodoro:
     def __init__(self, backend):
@@ -20,6 +26,21 @@ class Pomodoro:
     @property
     def state(self):
         return self.backend.data.setdefault('pomodoro', initial())
+
+    def duration(self, phase):
+        return settings(self.state)[phase + '_minutes'] * 60
+
+    def configure(self, values):
+        if not isinstance(values, dict) or not values:
+            self.fail('Enter Pomodoro settings.')
+        for key, value in values.items():
+            if key not in LIMITS or type(value) is not int or not 1 <= value <= LIMITS[key]:
+                self.fail('Invalid Pomodoro setting.')
+        p = self.state
+        p['settings'] = dict(settings(p), **values)
+        if p['status'] == 'idle':
+            p['remaining'] = self.duration(p['phase'])
+        self.backend.message = 'Pomodoro settings saved. Active and paused sessions keep their duration.'
 
     def fail(self, message):
         self.backend.fail(message)
@@ -30,7 +51,7 @@ class Pomodoro:
             self.fail('Finish or reset the current Pomodoro before starting another.')
         if p['status'] == 'finished':
             p['phase'] = next_phase(p)
-            p['remaining'] = DURATIONS[p['phase']]
+            p['remaining'] = self.duration(p['phase'])
             p['status'] = 'idle'
         if p['phase'] == 'focus':
             if p['status'] != 'paused':
@@ -83,14 +104,16 @@ class Pomodoro:
             b.save()  # Persist completion before notifying; restarts cannot duplicate it.
             b.notify(LABELS[p['phase']] + ' complete', 'Ready for '+LABELS[next_phase(p)].lower()+'. Start it when you’re ready.')
         elif target == 'idle':
-            p['remaining'] = DURATIONS[p['phase']]
+            p['remaining'] = self.duration(p['phase'])
         b.message = 'Pomodoro '+target
 
     def action(self, command):
         action = command['action']
         p = self.state
         now = time.time()
-        if action == 'pomo_start':
+        if action == 'pomo_configure':
+            self.configure(command.get('settings'))
+        elif action == 'pomo_start':
             self.start(command)
         elif action == 'pomo_pause' and p['status'] == 'running':
             self.request_stop('paused', now)
@@ -98,13 +121,13 @@ class Pomodoro:
             if p.get('entry_id'):
                 self.request_stop('idle', now)
             else:
-                p.update(status='idle', remaining=DURATIONS[p['phase']], deadline=0)
+                p.update(status='idle', remaining=self.duration(p['phase']), deadline=0)
         elif action == 'pomo_select':
             if p['status'] not in ('idle', 'finished'):
                 self.fail('Reset the current Pomodoro before changing phases.')
             phase = command.get('phase')
             if phase in DURATIONS:
-                p.update(phase=phase, status='idle', remaining=DURATIONS[phase], deadline=0)
+                p.update(phase=phase, status='idle', remaining=self.duration(phase), deadline=0)
 
     def reconcile(self):
         p, b = self.state, self.backend

@@ -16,6 +16,7 @@ Panel {
     property bool account: false
     property bool pomodoroMode: false
     readonly property var pomo: service ? service.pomodoro : ({phase: "focus", status: "idle", completed: 0})
+    readonly property var pomoSettings: service.pomodoroSettings
     readonly property bool pomoLocked: ["running", "starting", "stop_pending"].indexOf(pomo.status) >= 0
     readonly property string actionLabel: {
         if (!pomodoroMode) return root.state.current ? "Stop timer" : "Start timer";
@@ -62,11 +63,18 @@ Panel {
     property string projectName: "No project"
     readonly property var projects: (state.projects || []).filter(p => p.workspace_id === state.workspace && p.name.toLowerCase().indexOf(search.text.toLowerCase()) >= 0)
     readonly property bool timerActive: !!state.current || ["running", "starting", "stop_pending"].indexOf(pomo.status) >= 0
-    readonly property bool revealed: opened || timerActive || button.tooltipHovered || (bar && bar.centerSectionRevealHeld && !bar.centerHoverRevealSuppressed)
+    readonly property bool awaitingNextPhase: pomo.status === "finished"
+    readonly property bool showBreakMark: (pomo.phase !== "focus" && ["running", "paused"].indexOf(pomo.status) >= 0) || (awaitingNextPhase && pomo.phase === "focus")
+    readonly property bool alwaysShow: setting("alwaysShow", false) === true
+    function toggleAlwaysShow() {
+        root.settings = Object.assign({}, root.settings, {alwaysShow: !root.alwaysShow});
+        if (root.bar && root.bar.shell) root.bar.shell.updateEntryInline(root.moduleName, root.settings);
+    }
+    readonly property bool revealed: alwaysShow || opened || timerActive || awaitingNextPhase || button.tooltipHovered || (bar && bar.centerSectionRevealHeld && !bar.centerHoverRevealSuppressed)
     implicitWidth: revealed ? button.implicitWidth : 0
     implicitHeight: revealed ? button.implicitHeight : 0
     visible: revealed
-    onOpenedChanged: { suggesting = false; if (opened) { account = !state.connected; if (pomo.status !== "idle") pomodoroMode = true; } }
+    onOpenedChanged: { pickingProject = false; suggesting = false; if (opened) { account = !state.connected; if (timerActive) pomodoroMode = pomoLocked; else if (pomo.status !== "idle") pomodoroMode = true; } }
     Connections {
         target: root.service
         function onStateChanged() {
@@ -90,6 +98,25 @@ Panel {
             ctx.lineWidth = width * 0.095;
             ctx.beginPath(); ctx.arc(width / 2, height * 0.54, width * 0.235, -Math.PI / 4, Math.PI * 1.25); ctx.stroke();
             ctx.beginPath(); ctx.moveTo(width / 2, height * 0.22); ctx.lineTo(width / 2, height * 0.49); ctx.stroke();
+        }
+    }
+    component BreakMark: Canvas {
+        property color ink: Color.foreground
+        onInkChanged: requestPaint()
+        onWidthChanged: requestPaint()
+        onHeightChanged: requestPaint()
+        onPaint: {
+            var ctx = getContext("2d"); ctx.reset(); ctx.scale(width, height);
+            ctx.strokeStyle = ink; ctx.lineWidth = 0.085; ctx.lineCap = "round"; ctx.lineJoin = "round";
+            // A steaming cup, legible at the small bar icon size.
+            ctx.beginPath(); ctx.moveTo(0.15, 0.38); ctx.lineTo(0.71, 0.38);
+            ctx.lineTo(0.71, 0.65); ctx.quadraticCurveTo(0.71, 0.83, 0.53, 0.83);
+            ctx.lineTo(0.33, 0.83); ctx.quadraticCurveTo(0.15, 0.83, 0.15, 0.65);
+            ctx.closePath(); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0.72, 0.42); ctx.bezierCurveTo(1.0, 0.38, 1.0, 0.69, 0.72, 0.66); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0.1, 0.94); ctx.lineTo(0.8, 0.94);
+            ctx.moveTo(0.32, 0.23); ctx.lineTo(0.32, 0.08);
+            ctx.moveTo(0.55, 0.23); ctx.lineTo(0.55, 0.08); ctx.stroke();
         }
     }
     component TomatoMark: Canvas {
@@ -123,16 +150,18 @@ Panel {
         text: "Toggl"
         labelVisible: false
         fixedWidth: barContents.implicitWidth + Style.space(12)
-        dimmed: !root.timerActive
+        dimmed: !root.timerActive && !root.awaitingNextPhase
         Row {
             id: barContents
             anchors.centerIn: parent
             spacing: Style.space(6)
-            TrackMark { width: Style.space(13); height: width; anchors.verticalCenter: parent.verticalCenter; ink: root.state.current || root.pomo.status === "running" ? Color.accent : button.foreground }
+            BreakMark { visible: root.showBreakMark; width: Style.space(13); height: width; anchors.verticalCenter: parent.verticalCenter; ink: Color.accent }
+            TrackMark { visible: !root.showBreakMark; width: Style.space(13); height: width; anchors.verticalCenter: parent.verticalCenter; ink: root.state.current || root.pomo.status === "running" ? Color.accent : button.foreground }
             Text {
-                visible: !!root.state.current || root.pomo.status === "running" || root.pomo.status === "paused"
+                visible: !!root.state.current || root.pomo.status === "running" || root.pomo.status === "paused" || root.awaitingNextPhase
                 anchors.verticalCenter: parent.verticalCenter
                 text: {
+                    if (root.awaitingNextPhase) return root.pomo.phase === "focus" ? "Break" : "Focus";
                     if (!root.service) return "";
                     if (["running", "paused"].indexOf(root.pomo.status) >= 0) {
                         var seconds = root.pomo.status === "running" ? root.pomo.deadline - root.service.now / 1000 : root.pomo.remaining;
@@ -154,7 +183,7 @@ Panel {
         horizontalMargin: 5
         verticalPadding: 5
         maintainIndicatorReveal: true
-        tooltipText: root.state.current ? "Toggl · " + (root.state.current.description || "Untitled") + "\n" + root.projectLabel(root.state.current.project_id) + (!root.state.online ? "\nLast known timer · refresh needed" : "") : "Toggl Track"
+        tooltipText: root.awaitingNextPhase ? "Pomodoro · ready for " + root.service.pomodoroNext.toLowerCase() + "\nClick to start when ready" : root.showBreakMark ? "Pomodoro · " + root.service.pomodoroLabel + (root.pomo.status === "paused" ? " · paused" : "") : root.state.current ? "Toggl · " + (root.state.current.description || "Untitled") + "\n" + root.projectLabel(root.state.current.project_id) + (!root.state.online ? "\nLast known timer · refresh needed" : "") : "Toggl Track"
         onPressed: function(mouseButton) { if (mouseButton === Qt.LeftButton) root.toggle(); }
     }
     KeyboardPanel {
@@ -163,17 +192,37 @@ Panel {
         owner: root
         anchorItem: button
         open: root.opened
-        centerOnBar: true
+        centerOnBar: false
         focusTarget: content
         contentWidth: popup.fittedContentWidth(Style.space(420))
         contentHeight: popup.fittedContentHeight(content.implicitHeight)
         Controls.ScrollView {
             id: scroll
             width: parent.width
-            height: popup.contentHeight
+            height: parent.height
             contentWidth: availableWidth
             contentHeight: content.implicitHeight
             clip: true
+            Item {
+                parent: scroll
+                anchors.fill: parent
+                z: 100
+                PointHandler {
+                    // Observe presses without consuming clicks intended for other controls.
+                    acceptedButtons: Qt.AllButtons
+                    property bool dismissProject: false
+                    onActiveChanged: {
+                        if (!active) {
+                            // Let the clicked control finish before collapsing the layout.
+                            if (dismissProject) Qt.callLater(function() { root.pickingProject = false; });
+                            return;
+                        }
+                        var inToggle = projectToggle.contains(projectToggle.mapFromItem(scroll, point.position));
+                        var inPicker = projectPicker.contains(projectPicker.mapFromItem(scroll, point.position));
+                        dismissProject = root.pickingProject && !inToggle && !inPicker;
+                    }
+                }
+            }
             ColumnLayout {
                 id: content
                 width: scroll.availableWidth
@@ -184,7 +233,7 @@ Panel {
                     Layout.fillWidth: true
                     spacing: Style.space(4)
                     visible: !root.state.connected || root.canPickWorkspace
-                    Button {
+                    Button { bordered: true;
                         Layout.fillWidth: true
                         Layout.minimumWidth: 0
                         text: root.state.connected ? metrics.elidedText(root.workspaceName + " ▾", Qt.ElideRight, Math.max(0, popup.contentWidth - Style.space(20))) : "Toggl Track"
@@ -201,7 +250,7 @@ Panel {
                     model: root.state.workspaces || []
                     clip: true
                     boundsBehavior: Flickable.StopAtBounds
-                    delegate: Button {
+                    delegate: Button { bordered: true;
                         required property var modelData
                         required property int index
                         width: ListView.view.width
@@ -229,6 +278,65 @@ Panel {
                 visible: root.account
                 Layout.fillWidth: true
                 spacing: Style.space(8)
+                RowLayout {
+                    Layout.fillWidth: true
+                    Button { bordered: true; text: "Back"; focusable: true; onClicked: root.account = false }
+                    Item { Layout.fillWidth: true }
+                    Button { bordered: true; text: "Open Toggl"; focusable: true; onClicked: Quickshell.execDetached(["xdg-open", "https://track.toggl.com/timer"]) }
+                }
+                Toggle {
+                    Layout.fillWidth: true
+                    label: "Always show in menu bar"
+                    titleSize: Style.font.body
+                    checked: root.alwaysShow
+                    onClicked: root.toggleAlwaysShow()
+                }
+                Text {
+                    text: "Pomodoro"
+                    color: Color.foreground
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.body
+                }
+                GridLayout {
+                    Layout.fillWidth: true
+                    columns: 2
+                    columnSpacing: Style.space(16)
+                    rowSpacing: Style.space(8)
+                    enabled: root.service && !root.service.busy
+                    NumberField {
+                        label: "Focus (minutes)"
+                        from: 1; to: 180
+                        value: root.pomoSettings.focus_minutes
+                        onModified: value => root.act("pomo_configure", {settings: {focus_minutes: value}})
+                    }
+                    NumberField {
+                        label: "Short break (minutes)"
+                        from: 1; to: 60
+                        value: root.pomoSettings.short_minutes
+                        onModified: value => root.act("pomo_configure", {settings: {short_minutes: value}})
+                    }
+                    NumberField {
+                        label: "Long break (minutes)"
+                        from: 1; to: 120
+                        value: root.pomoSettings.long_minutes
+                        onModified: value => root.act("pomo_configure", {settings: {long_minutes: value}})
+                    }
+                    NumberField {
+                        label: "Focus sessions per long break"
+                        from: 1; to: 12
+                        value: root.pomoSettings.long_every
+                        onModified: value => root.act("pomo_configure", {settings: {long_every: value}})
+                    }
+                }
+                Text {
+                    Layout.fillWidth: true
+                    text: "Saved automatically. Active and paused sessions keep their duration."
+                    color: Color.foreground
+                    opacity: 0.7
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.bodySmall
+                    wrapMode: Text.Wrap
+                }
                 Text {
                     Layout.fillWidth: true
                     text: "This app uses Toggl’s public API. Connect with an API token from your Toggl profile. Email and password sign-in isn’t supported in this app."
@@ -250,11 +358,11 @@ Panel {
                 }
                 TextField { id: token; Layout.fillWidth: true; placeholderText: "Toggl API token"; password: true; onAccepted: connect.clicked() }
                 RowLayout {
-                    Button { id: connect; text: "Connect"; focusable: true; enabled: token.text.length > 0 && root.service && !root.service.busy; onClicked: { if (!enabled) return; root.act("connect", {token: token.text}); token.text = ""; } }
-                    Button { text: "Get token"; focusable: true; onClicked: Quickshell.execDetached(["xdg-open", "https://track.toggl.com/profile"]) }
-                    Button { text: "Retry keyring"; focusable: true; enabled: root.service && !root.service.busy; onClicked: root.act("init") }
+                    Button { bordered: true; id: connect; text: "Connect"; focusable: true; enabled: token.text.length > 0 && root.service && !root.service.busy; onClicked: { if (!enabled) return; root.act("connect", {token: token.text}); token.text = ""; } }
+                    Button { bordered: true; text: "Get token"; focusable: true; onClicked: Quickshell.execDetached(["xdg-open", "https://track.toggl.com/profile"]) }
+                    Button { bordered: true; text: "Retry keyring"; focusable: true; enabled: root.service && !root.service.busy; onClicked: root.act("init") }
                 }
-                Button { visible: root.state.connected; text: "Disconnect account"; focusable: true; enabled: root.service && !root.service.busy; onClicked: root.act("disconnect") }
+                Button { bordered: true; visible: root.state.connected; text: "Disconnect account"; focusable: true; enabled: root.service && !root.service.busy; onClicked: root.act("disconnect") }
             }
                 ColumnLayout {
                     visible: !root.account
@@ -265,6 +373,8 @@ Panel {
                         spacing: Style.space(10)
                         Controls.AbstractButton {
                             id: pomoToggle
+                            enabled: !root.timerActive && root.service && !root.service.busy
+                            opacity: root.pomodoroMode || enabled ? 1 : 0.45
                             implicitWidth: Style.space(28)
                             implicitHeight: implicitWidth
                             text: "Pomodoro"
@@ -272,22 +382,22 @@ Panel {
                             Accessible.name: "Toggle Pomodoro controls"
                             background: Rectangle {
                                 radius: width / 2
-                                color: "transparent"
-                                border.width: 1
-                                border.color: root.pomodoroMode || pomoToggle.activeFocus ? Color.accent : Color.muted
+                                color: root.pomodoroMode ? Color.accent : "transparent"
+                                border.width: pomoToggle.activeFocus ? Style.space(2) : 1
+                                border.color: pomoToggle.activeFocus ? Color.foreground : (root.pomodoroMode ? Color.accent : Color.muted)
                             }
                             contentItem: Item {
                                 TomatoMark {
                                     anchors.centerIn: parent
                                     width: Style.space(17)
                                     height: width
-                                    ink: root.pomo.status === "running" ? Color.accent : (pomoToggle.hovered ? Color.foreground : Color.muted)
+                                    ink: root.pomodoroMode ? root.accentInk() : (pomoToggle.hovered ? Color.foreground : Color.muted)
                                 }
                             }
                             Controls.ToolTip.visible: hovered
-                            Controls.ToolTip.text: "Pomodoro"
+                            Controls.ToolTip.text: root.timerActive ? "Stop or pause the timer to change mode" : "Pomodoro"
                             Controls.ToolTip.delay: 400
-                            onClicked: root.pomodoroMode = !root.pomodoroMode
+                            onClicked: if (enabled) root.pomodoroMode = !root.pomodoroMode
                         }
                         TextField {
                             id: description
@@ -358,7 +468,7 @@ Panel {
                         clip: true
                         boundsBehavior: Flickable.StopAtBounds
                         onCurrentIndexChanged: if (currentIndex >= 0) positionViewAtIndex(currentIndex, ListView.Contain)
-                        delegate: Button {
+                        delegate: Button { bordered: true;
                             required property var modelData
                             required property int index
                             width: ListView.view.width
@@ -374,20 +484,60 @@ Panel {
                     }
                     RowLayout {
                         Layout.fillWidth: true
-                        Button { Layout.fillWidth: true; leftAlign: true; text: root.fit(root.projectName + " ▾"); tooltipText: root.projectName; focusable: true; enabled: !root.pomoLocked; onClicked: root.pickingProject = !root.pickingProject }
+                        spacing: Style.space(6)
+                        Button {
+                            bordered: true
+                            id: projectToggle
+                            Layout.fillWidth: true
+                            Layout.minimumWidth: 0
+                            leftAlign: true
+                            text: metrics.elidedText(root.projectName + " ▾", Qt.ElideRight, Math.max(0, width - horizontalPadding * 2 - Style.space(4)))
+                            tooltipText: root.projectName
+                            focusable: true
+                            enabled: !root.pomoLocked
+                            onClicked: root.pickingProject = !root.pickingProject
+                        }
+                        Button {
+                            bordered: true
+                            Layout.preferredHeight: projectToggle.implicitHeight
+                            Layout.maximumHeight: projectToggle.implicitHeight
+                            Layout.minimumWidth: projectToggle.implicitHeight
+                            Layout.preferredWidth: projectToggle.implicitHeight
+                            Layout.maximumWidth: projectToggle.implicitHeight
+                            iconText: "󰑐"
+                            tooltipText: "Refresh"
+                            Accessible.name: "Refresh"
+                            focusable: true
+                            enabled: root.state.connected && root.service && !root.service.busy
+                            onClicked: root.act("refresh")
+                        }
+                        Button {
+                            bordered: true
+                            Layout.preferredHeight: projectToggle.implicitHeight
+                            Layout.maximumHeight: projectToggle.implicitHeight
+                            Layout.minimumWidth: projectToggle.implicitHeight
+                            Layout.preferredWidth: projectToggle.implicitHeight
+                            Layout.maximumWidth: projectToggle.implicitHeight
+                            iconText: "󰒓"
+                            tooltipText: "Settings"
+                            Accessible.name: "Settings"
+                            focusable: true
+                            onClicked: { root.pickingProject = false; root.account = true; }
+                        }
                     }
                     ColumnLayout {
+                        id: projectPicker
                         visible: root.pickingProject
                         Layout.fillWidth: true
                         TextField { id: search; Layout.fillWidth: true; placeholderText: "Search projects" }
-                        Button { text: "No project"; focusable: true; onClicked: { root.projectId = null; root.projectName = "No project"; root.pickingProject = false; } }
+                        Button { bordered: true; text: "No project"; focusable: true; onClicked: { root.projectId = null; root.projectName = "No project"; root.pickingProject = false; } }
                         ListView {
                             Layout.fillWidth: true
                             Layout.preferredHeight: Math.min(count * Style.space(32), Style.space(128))
                             clip: true
                             model: root.projects
                             boundsBehavior: Flickable.StopAtBounds
-                            delegate: Button {
+                            delegate: Button { bordered: true;
                                 required property var modelData
                                 required property int index
                                 width: ListView.view.width
@@ -419,8 +569,8 @@ Panel {
                         RowLayout {
                             Layout.fillWidth: true
                             Repeater {
-                                model: [{phase: "focus", label: "Focus 25"}, {phase: "short", label: "Break 5"}, {phase: "long", label: "Long 15"}]
-                                Button {
+                                model: [{phase: "focus", label: "Focus " + root.pomoSettings.focus_minutes}, {phase: "short", label: "Break " + root.pomoSettings.short_minutes}, {phase: "long", label: "Long " + root.pomoSettings.long_minutes}]
+                                Button { bordered: true;
                                     required property var modelData
                                     Layout.fillWidth: true
                                     text: modelData.label
@@ -435,24 +585,17 @@ Panel {
                             Layout.fillWidth: true
                             Text {
                                 Layout.fillWidth: true
-                                text: root.pomo.status === "finished" ? "Done · next: " + root.service.pomodoroNext : root.pomo.status === "paused" ? "Paused" : "Focus " + (root.pomo.completed % 4 + 1) + "/4 · " + (root.pomo.phase === "focus" ? "tracked in Toggl" : "untracked break")
+                                text: root.pomo.status === "finished" ? "Done · next: " + root.service.pomodoroNext : root.pomo.status === "paused" ? "Paused" : "Focus " + (root.pomo.completed % root.pomoSettings.long_every + 1) + "/" + root.pomoSettings.long_every + " · " + (root.pomo.phase === "focus" ? "tracked in Toggl" : "untracked break")
                                 color: Color.foreground
                                 opacity: 0.7
                                 font.family: Style.font.family
                                 font.pixelSize: Style.font.bodySmall
                             }
-                            Button { text: "Reset"; focusable: true; enabled: root.service && !root.service.busy; onClicked: root.act("pomo_reset") }
+                            Button { bordered: true; text: "Reset"; focusable: true; enabled: root.service && !root.service.busy; onClicked: root.act("pomo_reset") }
                         }
                     }
                 }
-                Rectangle { Layout.fillWidth: true; height: 1; color: Color.foreground; opacity: 0.12 }
-                Item {
-                    Layout.fillWidth: true
-                    implicitHeight: Math.max(refreshButton.implicitHeight, accountButton.implicitHeight, openButton.implicitHeight)
-                    Button { id: refreshButton; anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Refresh"; focusable: true; enabled: root.state.connected && root.service && !root.service.busy; onClicked: root.act("refresh") }
-                    Button { id: accountButton; anchors.centerIn: parent; text: root.account ? "Back" : "Account"; focusable: true; onClicked: root.account = !root.account }
-                    Button { id: openButton; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "Toggl"; focusable: true; onClicked: Quickshell.execDetached(["xdg-open", "https://track.toggl.com/timer"]) }
-                }
+
             }
         }
     }
