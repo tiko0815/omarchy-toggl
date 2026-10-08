@@ -1,6 +1,6 @@
 # Simple Toggl Tracker for Omarchy
 
-![Simple Toggl Tracker with Refresh and Settings icons beside the project selector](preview.png)
+![Simple Toggl Tracker showing time tracking and Pomodoro controls in the Osaka Jade theme](preview.png)
 
 Compact Quickshell bar plugin with Start/Stop, project and workspace selection,
 and Pomodoro focus sessions automatically tracked in Toggl. There is no recent list. The desktop theme and shell typography
